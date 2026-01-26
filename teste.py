@@ -11,6 +11,7 @@ CLIENT_SECRET = os.getenv("TINY_CLIENT_SECRET")
 AUTHORIZATION_CODE = os.getenv("TINY_AUTHORIZATION_CODE")
 ACCESS_TOKEN = os.getenv("TINY_ACCESS_TOKEN")
 REDIRECT_URI = os.getenv("TINY_REDIRECT_URI")  # URL de redirecionamento configurada no Tiny
+PRODUTO_ID = os.getenv("TINY_PRODUTO_ID")  # ID do produto para teste (opcional)
 
 print("=" * 60)
 print("TESTE DE AUTORIZACAO API V3 TINY/OLIST")
@@ -21,9 +22,18 @@ if ACCESS_TOKEN:
     print("\n[OK] Access token encontrado no .env")
     print(f"Token: {ACCESS_TOKEN[:20]}...")
     
-    # Testar autorização com uma requisição de teste
-    print("\n[TESTE] Testando autorizacao...")
-    TEST_URL = "https://api.tiny.com.br/api/v3/contas/informacoes"
+    # Testar autorização com uma requisição de teste - API de produtos
+    print("\n[TESTE] Testando autorizacao com API de produtos...")
+    
+    # Se tem ID de produto, usa ele, senao tenta listar produtos
+    if PRODUTO_ID:
+        TEST_URL = f"https://api.tiny.com.br/public-api/v3/produtos/{PRODUTO_ID}"
+        print(f"[INFO] Testando produto ID: {PRODUTO_ID}")
+    else:
+        # Tenta listar produtos (endpoint comum em APIs REST)
+        TEST_URL = "https://api.tiny.com.br/public-api/v3/produtos"
+        print("[INFO] Testando listagem de produtos (sem ID especifico)")
+        print("[DICA] Para testar produto especifico, adicione TINY_PRODUTO_ID no .env")
     
     headers = {
         "Authorization": f"Bearer {ACCESS_TOKEN}",
@@ -34,18 +44,18 @@ if ACCESS_TOKEN:
         response = requests.get(TEST_URL, headers=headers)
         
         print(f"[DEBUG] Status Code: {response.status_code}")
-        print(f"[DEBUG] Response Text: {response.text[:200]}")
+        print(f"[DEBUG] URL: {TEST_URL}")
         
         try:
             data = response.json()
         except json.JSONDecodeError:
             print(f"[ERRO] Resposta nao e um JSON valido")
-            print(f"Resposta completa: {response.text}")
+            print(f"Resposta completa: {response.text[:500]}")
             data = {}
         
         if response.status_code == 200:
             print("[OK] Autorizacao confirmada! Acesso a API V3 funcionando.")
-            print("\n[INFO] Informacoes da conta:")
+            print("\n[INFO] Resposta da API:")
             print(json.dumps(data, indent=2, ensure_ascii=False))
         else:
             print(f"[ERRO] Erro ao testar autorizacao: {response.status_code}")
@@ -131,9 +141,18 @@ elif AUTHORIZATION_CODE and CLIENT_ID and CLIENT_SECRET:
                 if expires_in:
                     print(f"Expira em: {expires_in} segundos")
                 
-                # Agora testa a autorização
-                print("\n[TESTE] Testando autorizacao com uma chamada de API...")
-                TEST_URL = "https://api.tiny.com.br/api/v3/contas/informacoes"
+                # Agora testa a autorização com API de produtos
+                print("\n[TESTE] Testando autorizacao com API de produtos...")
+                
+                # Se tem ID de produto, usa ele, senao tenta listar produtos
+                if PRODUTO_ID:
+                    TEST_URL = f"https://api.tiny.com.br/public-api/v3/produtos/{PRODUTO_ID}"
+                    print(f"[INFO] Testando produto ID: {PRODUTO_ID}")
+                else:
+                    # Tenta listar produtos
+                    TEST_URL = "https://api.tiny.com.br/public-api/v3/produtos"
+                    print("[INFO] Testando listagem de produtos (sem ID especifico)")
+                    print("[DICA] Para testar produto especifico, adicione TINY_PRODUTO_ID no .env")
                 
                 headers = {
                     "Authorization": f"Bearer {access_token}",
@@ -143,6 +162,7 @@ elif AUTHORIZATION_CODE and CLIENT_ID and CLIENT_SECRET:
                 test_response = requests.get(TEST_URL, headers=headers)
                 
                 print(f"[DEBUG] Status Code: {test_response.status_code}")
+                print(f"[DEBUG] URL: {TEST_URL}")
                 
                 try:
                     test_data = test_response.json()
@@ -153,7 +173,7 @@ elif AUTHORIZATION_CODE and CLIENT_ID and CLIENT_SECRET:
                 
                 if test_response.status_code == 200:
                     print("[OK] Autorizacao confirmada! Acesso a API V3 funcionando.")
-                    print("\n[INFO] Informacoes da conta:")
+                    print("\n[INFO] Resposta da API:")
                     print(json.dumps(test_data, indent=2, ensure_ascii=False))
                     
                     print("\n" + "=" * 60)
