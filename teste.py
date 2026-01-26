@@ -57,42 +57,34 @@ if ACCESS_TOKEN:
 elif AUTHORIZATION_CODE and CLIENT_ID and CLIENT_SECRET:
     print("\n[OBTENDO] Obtendo access token usando authorization code...")
     
-    # Baseado na documentacao oficial da API V3, o endpoint mais provavel e:
-    # https://api.tiny.com.br/api/v3/oauth/token
-    # Mas vamos tentar variacoes comuns
-    TOKEN_URLS = [
-        "https://api.tiny.com.br/api/v3/oauth/token",  # Mais provavel para API V3
-        "https://api.tiny.com.br/oauth/token",
-        "https://api.tiny.com.br/oauth2/token",
-    ]
+    # Endpoint correto conforme documentacao oficial da API V3
+    # https://api-docs.erp.olist.com/documentacao/comecando/autenticacao
+    TOKEN_URL = "https://accounts.tiny.com.br/realms/tiny/protocol/openid-connect/token"
     
-    # Preparar payload - OAuth2 padrao requer estes campos
+    # Preparar payload conforme documentacao oficial
     token_payload = {
         "grant_type": "authorization_code",
-        "code": AUTHORIZATION_CODE,
         "client_id": CLIENT_ID,
         "client_secret": CLIENT_SECRET,
+        "code": AUTHORIZATION_CODE,
     }
     
-    # Adicionar redirect_uri se fornecido (geralmente obrigatorio)
+    # redirect_uri e obrigatorio conforme documentacao
     if REDIRECT_URI:
         token_payload["redirect_uri"] = REDIRECT_URI
         print(f"[INFO] Usando redirect_uri: {REDIRECT_URI}")
     else:
-        print("[AVISO] REDIRECT_URI nao fornecido - pode ser necessario!")
+        print("[ERRO] REDIRECT_URI e obrigatorio!")
+        print("[ERRO] Adicione TINY_REDIRECT_URI no seu .env")
+        token_response = None
     
-    token_response = None
-    successful_url = None
-    
-    # Tentar cada URL possivel
-    for TOKEN_URL in TOKEN_URLS:
-        print(f"\n[TENTANDO] URL: {TOKEN_URL}")
+    if REDIRECT_URI:
+        print(f"\n[REQUISICAO] Endpoint: {TOKEN_URL}")
         
         try:
-            # OAuth2 geralmente usa application/x-www-form-urlencoded
+            # Conforme documentacao: Content-Type: application/x-www-form-urlencoded
             headers = {
-                "Content-Type": "application/x-www-form-urlencoded",
-                "Accept": "application/json"
+                "Content-Type": "application/x-www-form-urlencoded"
             }
             
             token_response = requests.post(TOKEN_URL, data=token_payload, headers=headers)
@@ -100,32 +92,29 @@ elif AUTHORIZATION_CODE and CLIENT_ID and CLIENT_SECRET:
             print(f"[DEBUG] Status Code: {token_response.status_code}")
             
             if token_response.status_code == 200:
-                successful_url = TOKEN_URL
-                print(f"[OK] URL correta encontrada: {TOKEN_URL}")
-                break
+                print(f"[OK] Token obtido com sucesso!")
             elif token_response.status_code == 400:
-                # Bad Request - pode ser formato errado ou parametros incorretos
-                print(f"[INFO] Status 400 - Verifique os parametros")
+                print(f"[ERRO] Status 400 - Bad Request")
                 try:
                     error_data = token_response.json()
                     print(f"[ERRO] Detalhes: {json.dumps(error_data, indent=2, ensure_ascii=False)}")
                 except:
-                    print(f"[ERRO] Resposta: {token_response.text[:300]}")
+                    print(f"[ERRO] Resposta: {token_response.text[:500]}")
             elif token_response.status_code == 401:
-                # Unauthorized - credenciais incorretas
-                print(f"[ERRO] Status 401 - Credenciais incorretas ou code expirado")
-                print(f"[ERRO] Resposta: {token_response.text[:300]}")
-            elif token_response.status_code == 403:
-                # Forbidden - pode ser URL correta mas sem permissao
-                print(f"[INFO] Status 403 - URL pode estar correta mas sem permissao")
-                print(f"[DEBUG] Resposta: {token_response.text[:300]}")
+                print(f"[ERRO] Status 401 - Unauthorized")
+                print(f"[ERRO] Credenciais incorretas ou authorization code expirado")
+                try:
+                    error_data = token_response.json()
+                    print(f"[ERRO] Detalhes: {json.dumps(error_data, indent=2, ensure_ascii=False)}")
+                except:
+                    print(f"[ERRO] Resposta: {token_response.text[:500]}")
             else:
-                print(f"[INFO] Status {token_response.status_code}")
-                print(f"[DEBUG] Resposta: {token_response.text[:200]}")
+                print(f"[ERRO] Status {token_response.status_code}")
+                print(f"[ERRO] Resposta: {token_response.text[:500]}")
                 
         except Exception as e:
-            print(f"[ERRO] Erro ao tentar {TOKEN_URL}: {str(e)}")
-            continue
+            print(f"[ERRO] Erro na requisicao: {str(e)}")
+            token_response = None
     
     if token_response and token_response.status_code == 200:
         try:
