@@ -2,6 +2,7 @@ import requests
 from dotenv import load_dotenv
 import os
 import json
+from urllib.parse import quote
 
 load_dotenv()
 
@@ -32,6 +33,19 @@ if not AUTHORIZATION_CODE:
 if not REDIRECT_URI:
     print("\n[ERRO] TINY_REDIRECT_URI nao encontrado no .env")
     exit(1)
+
+# Limpar o código de possíveis espaços ou quebras de linha
+AUTHORIZATION_CODE = AUTHORIZATION_CODE.strip()
+
+# Normalizar o redirect_uri (remover espaços e garantir formato correto)
+REDIRECT_URI = REDIRECT_URI.strip()
+
+print("\n[DEBUG] Verificando configuracoes:")
+print(f"[DEBUG] CLIENT_ID: {CLIENT_ID[:20]}...")
+print(f"[DEBUG] AUTHORIZATION_CODE: {AUTHORIZATION_CODE[:30]}... (tamanho: {len(AUTHORIZATION_CODE)} caracteres)")
+print(f"[DEBUG] REDIRECT_URI: {REDIRECT_URI}")
+print(f"[DEBUG] CODE tem espacos: {'Sim' if ' ' in AUTHORIZATION_CODE else 'Nao'}")
+print(f"[DEBUG] CODE tem quebras de linha: {'Sim' if '\n' in AUTHORIZATION_CODE or '\r' in AUTHORIZATION_CODE else 'Nao'}")
 
 # Endpoint conforme documentacao oficial
 TOKEN_URL = "https://accounts.tiny.com.br/realms/tiny/protocol/openid-connect/token"
@@ -86,6 +100,27 @@ try:
         try:
             error_data = response.json()
             print(f"[DETALHES] {json.dumps(error_data, indent=2, ensure_ascii=False)}")
+            
+            # Mensagens de ajuda específicas para erros comuns
+            if error_data.get("error") == "invalid_grant":
+                print("\n" + "=" * 60)
+                print("[POSSIVEIS CAUSAS DO ERRO 'invalid_grant']")
+                print("=" * 60)
+                print("1. O codigo de autorizacao EXPIROU (validade: alguns minutos)")
+                print("   -> SOLUCAO: Gere um novo codigo executando obter_authorization_code.py")
+                print("   -> Use o codigo IMEDIATAMENTE apos obte-lo")
+                print()
+                print("2. O codigo JA FOI USADO anteriormente (codigos sao single-use)")
+                print("   -> SOLUCAO: Gere um novo codigo")
+                print()
+                print("3. O REDIRECT_URI nao corresponde exatamente ao usado na autorizacao")
+                print(f"   -> REDIRECT_URI atual: {REDIRECT_URI}")
+                print("   -> SOLUCAO: Verifique se o REDIRECT_URI no .env e EXATAMENTE")
+                print("      o mesmo usado na URL de autorizacao (incluindo / no final)")
+                print()
+                print("4. O codigo foi copiado incorretamente (espacos extras, quebras de linha)")
+                print(f"   -> SOLUCAO: Verifique o codigo no .env (tamanho: {len(AUTHORIZATION_CODE)} caracteres)")
+                print("=" * 60)
         except:
             print(f"[RESPOSTA] {response.text[:500]}")
             
