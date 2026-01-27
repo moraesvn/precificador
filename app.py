@@ -21,7 +21,7 @@ if 'code' in params:
     
     st.subheader("📋 Código de Autorização:")
     st.code(authorization_code, language=None)
-    
+    '''
     st.info("""
     **Próximos passos:**
     1. Copie o código acima
@@ -33,7 +33,7 @@ if 'code' in params:
     
     ⚠️ **Importante:** O código expira rapidamente (alguns minutos)!
     """)
-    
+    '''
     # Mostrar todos os parâmetros recebidos
     st.subheader("📄 Todos os parâmetros recebidos:")
     st.json(dict(params))
