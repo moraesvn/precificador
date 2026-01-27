@@ -11,8 +11,8 @@ if not ACCESS_TOKEN:
     print("ERRO: TINY_ACCESS_TOKEN nao encontrado no .env")
     exit(1)
 
-# ID do produto
-#PRODUTO_ID = 7113
+# Limpar token
+ACCESS_TOKEN = ACCESS_TOKEN.strip()
 
 # URL da API
 url = "https://api.tiny.com.br/public-api/v3/produtos?limit=100&codigo=7113"
@@ -20,7 +20,29 @@ url = "https://api.tiny.com.br/public-api/v3/produtos?limit=100&codigo=7113"
 # Headers
 headers = {"Authorization": f"Bearer {ACCESS_TOKEN}"}
 
-# Fazer requisicao
-response = requests.get(url, headers=headers)
+print(f"[REQUISICAO] GET {url}")
+print(f"[TOKEN] {ACCESS_TOKEN[:30]}... (tamanho: {len(ACCESS_TOKEN)} caracteres)\n")
 
-print(response.text)
+try:
+    response = requests.get(url, headers=headers)
+    
+    print(f"[STATUS] {response.status_code}")
+    
+    if response.status_code == 200:
+        print("[OK] Resposta recebida:")
+        print("=" * 60)
+        print(response.text)
+        print("=" * 60)
+    elif response.status_code == 401:
+        print("[ERRO] 401 - Token invalido ou expirado")
+        print("\n[RESPOSTA DA API]")
+        print(response.text)
+        print("\n[SOLUCAO]")
+        print("Execute: python renovar_token.py")
+    else:
+        print(f"[ERRO] Status {response.status_code}")
+        print("\n[RESPOSTA]")
+        print(response.text)
+        
+except Exception as e:
+    print(f"[ERRO] Erro na requisicao: {str(e)}")
