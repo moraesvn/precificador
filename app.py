@@ -21,19 +21,7 @@ if 'code' in params:
     
     st.subheader("📋 Código de Autorização:")
     st.code(authorization_code, language=None)
-    '''
-    st.info("""
-    **Próximos passos:**
-    1. Copie o código acima
-    2. Adicione no seu arquivo `.env`:
-       ```
-       TINY_AUTHORIZATION_CODE=seu_codigo_aqui
-       ```
-    3. Execute `python teste.py` para obter o access token
-    
-    ⚠️ **Importante:** O código expira rapidamente (alguns minutos)!
-    """)
-    '''
+
     # Mostrar todos os parâmetros recebidos
     st.subheader("📄 Todos os parâmetros recebidos:")
     st.json(dict(params))
@@ -56,6 +44,9 @@ else:
     3. Faça login e autorize o aplicativo
     4. Você será redirecionado para esta página com o código
     """)
+
+'''
+
 
 # Seção para teste de API de produtos
 st.divider()
@@ -120,3 +111,5 @@ else:
                     st.error(f"❌ Erro na requisição: {str(e)}")
         else:
             st.warning("⚠️ Digite um código de produto")
+
+'''
