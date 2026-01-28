@@ -32,9 +32,22 @@ class TinyService:
         """
         url = f"{self.base_url}/{endpoint}"
         
+        # Log da URL completa para debug
+        if 'params' in kwargs:
+            import urllib.parse
+            params_str = urllib.parse.urlencode(kwargs['params'])
+            url_completa = f"{url}?{params_str}" if params_str else url
+            print(f"[DEBUG] URL completa: {url_completa}")
+        
         try:
             response = requests.request(method, url, headers=self.headers, **kwargs)
-            response.raise_for_status()
+            
+            # Verificar status antes de fazer raise_for_status para melhor tratamento
+            if response.status_code != 200:
+                print(f"[ERRO] Status {response.status_code}")
+                print(f"[ERRO] Resposta: {response.text[:500]}")
+                return None
+            
             return response.json()
         except requests.exceptions.RequestException as e:
             print(f"Erro na requisição à API Tiny: {str(e)}")
@@ -64,6 +77,11 @@ class TinyService:
         
         # Adicionar filtro de data de modificação se fornecido
         if dataAlteracao:
+            # Se a data não contém hora (formato YYYY-MM-DD com 10 caracteres), adicionar 00:00:00
+            if len(dataAlteracao) == 10:
                 params["dataAlteracao"] = f"{dataAlteracao} 00:00:00"
+            else:
+                # Se já tem hora, usar como está
+                params["dataAlteracao"] = dataAlteracao
         
         return self._make_request("GET", "produtos", params=params)
