@@ -15,7 +15,7 @@ if not ACCESS_TOKEN:
 ACCESS_TOKEN = ACCESS_TOKEN.strip()
 
 # URL da API
-url = "https://api.tiny.com.br/public-api/v3/produtos?limit=100&codigo=7113"
+url = "https://api.tiny.com.br/public-api/v3/produtos?limit=100&dataAlteracao=2026-01-28 07:00:00"
 
 # Headers
 headers = {"Authorization": f"Bearer {ACCESS_TOKEN}"}

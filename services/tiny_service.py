@@ -64,7 +64,11 @@ class TinyService:
         
         # Adicionar filtro de data de modificação se fornecido
         if dataAlteracao:
-            params["dataAlteracao"] = dataAlteracao
+            # Se a data não contém hora, adicionar 00:00:00 como padrão
+            if len(dataAlteracao) == 10:  # Formato YYYY-MM-DD (10 caracteres)
+                params["dataAlteracao"] = f"{dataAlteracao} 00:00:00"
+            else:
+                params["dataAlteracao"] = dataAlteracao
 
         
         return self._make_request("GET", "produtos", params=params)
