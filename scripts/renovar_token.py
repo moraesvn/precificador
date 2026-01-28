@@ -61,13 +61,64 @@ try:
         expires_in = token_data.get("expires_in")
         
         print("\n[OK] Access token renovado com sucesso!")
-        print("=" * 60)
-        print("[IMPORTANTE] Atualize estes tokens no seu .env:")
-        print("=" * 60)
-        print(f"TINY_ACCESS_TOKEN={access_token}")
-        if refresh_token:
-            print(f"TINY_REFRESH_TOKEN={refresh_token}")
-        print("=" * 60)
+        
+        # Salvar automaticamente no .env
+        env_path = ".env"
+        if os.path.exists(env_path):
+            try:
+                # Ler arquivo .env
+                with open(env_path, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()
+                
+                # Atualizar ou adicionar tokens
+                new_lines = []
+                access_token_found = False
+                refresh_token_found = False
+                
+                for line in lines:
+                    if line.startswith("TINY_ACCESS_TOKEN="):
+                        new_lines.append(f"TINY_ACCESS_TOKEN={access_token}\n")
+                        access_token_found = True
+                    elif line.startswith("TINY_REFRESH_TOKEN="):
+                        if refresh_token:
+                            new_lines.append(f"TINY_REFRESH_TOKEN={refresh_token}\n")
+                        refresh_token_found = True
+                    else:
+                        new_lines.append(line)
+                
+                # Adicionar se não existir
+                if not access_token_found:
+                    new_lines.append(f"\nTINY_ACCESS_TOKEN={access_token}\n")
+                if refresh_token and not refresh_token_found:
+                    new_lines.append(f"TINY_REFRESH_TOKEN={refresh_token}\n")
+                
+                # Salvar arquivo
+                with open(env_path, 'w', encoding='utf-8') as f:
+                    f.writelines(new_lines)
+                
+                print("=" * 60)
+                print("✅ Tokens salvos automaticamente no .env!")
+                print("=" * 60)
+                
+            except Exception as e:
+                print("=" * 60)
+                print("⚠️ Nao foi possivel salvar automaticamente no .env")
+                print(f"Erro: {str(e)}")
+                print("\n[IMPORTANTE] Atualize manualmente estes tokens no .env:")
+                print("=" * 60)
+                print(f"TINY_ACCESS_TOKEN={access_token}")
+                if refresh_token:
+                    print(f"TINY_REFRESH_TOKEN={refresh_token}")
+                print("=" * 60)
+        else:
+            print("=" * 60)
+            print("⚠️ Arquivo .env nao encontrado")
+            print("\n[IMPORTANTE] Adicione estes tokens no seu .env:")
+            print("=" * 60)
+            print(f"TINY_ACCESS_TOKEN={access_token}")
+            if refresh_token:
+                print(f"TINY_REFRESH_TOKEN={refresh_token}")
+            print("=" * 60)
         
         if expires_in:
             horas = expires_in // 3600
