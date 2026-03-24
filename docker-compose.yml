@@ -1,0 +1,9 @@
+services:
+  auth-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: precificador-auth-api
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8000:8000"
