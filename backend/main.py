@@ -24,6 +24,7 @@ def tiny_callback(
     }
 
 
+@app.get("/oauth/ml/callback/")
 @app.get("/oauth/ml/callback")
 def ml_callback(
     code: str | None = Query(default=None),
