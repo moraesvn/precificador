@@ -1,3 +1,5 @@
+import os
+
 from fastapi import FastAPI, Query
 
 
@@ -6,7 +8,8 @@ app = FastAPI(title="Precificador OAuth API", version="0.1.0")
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok"}
+    database_url = os.getenv("DATABASE_URL")
+    return {"status": "ok", "database_url_configured": str(bool(database_url)).lower()}
 
 
 @app.get("/oauth/tiny/callback")
