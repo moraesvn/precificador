@@ -1,5 +1,7 @@
 from fastapi import APIRouter, Query
 
+from backend.constants import PROVIDER_TINY
+
 
 router = APIRouter(prefix="/oauth/tiny", tags=["oauth-tiny"])
 
@@ -11,7 +13,7 @@ def tiny_callback(
     error: str | None = Query(default=None),
 ) -> dict[str, str | None]:
     return {
-        "provider": "tiny",
+        "provider": PROVIDER_TINY,
         "message": "Callback recebido com sucesso.",
         "code": code,
         "state": state,

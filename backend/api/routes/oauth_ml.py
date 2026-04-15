@@ -1,5 +1,7 @@
 from fastapi import APIRouter, Query
 
+from backend.constants import PROVIDER_ML
+
 
 router = APIRouter(prefix="/oauth/ml", tags=["oauth-ml"])
 
@@ -12,7 +14,7 @@ def ml_callback(
     error: str | None = Query(default=None),
 ) -> dict[str, str | None]:
     return {
-        "provider": "ml",
+        "provider": PROVIDER_ML,
         "message": "Callback recebido com sucesso.",
         "code": code,
         "state": state,
