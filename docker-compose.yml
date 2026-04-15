@@ -7,5 +7,11 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: ${DATABASE_URL}
+      SP_TINY_CLIENT_ID: ${SP_TINY_CLIENT_ID:-}
+      SP_TINY_CLIENT_SECRET: ${SP_TINY_CLIENT_SECRET:-}
+      SP_TINY_REDIRECT_URI: ${SP_TINY_REDIRECT_URI:-}
+      SC_TINY_CLIENT_ID: ${SC_TINY_CLIENT_ID:-}
+      SC_TINY_CLIENT_SECRET: ${SC_TINY_CLIENT_SECRET:-}
+      SC_TINY_REDIRECT_URI: ${SC_TINY_REDIRECT_URI:-}
     ports:
       - "127.0.0.1:8000:8000"
