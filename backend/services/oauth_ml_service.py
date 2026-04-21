@@ -2,12 +2,18 @@ import base64
 import hashlib
 import os
 import secrets
+from datetime import UTC, datetime, timedelta
+from json import JSONDecodeError, loads
+from typing import Any
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
+from urllib.request import Request, urlopen
 
 from backend.constants import PROVIDER_ML, SUPPORTED_COMPANIES
 from backend.constants.integrations import CompanyCode, Provider
 
 DEFAULT_ML_AUTH_URL = "https://auth.mercadolivre.com.br/authorization"
+DEFAULT_ML_TOKEN_URL = "https://api.mercadolibre.com/oauth/token"
 
 
 def normalize_company_code(company_code: str) -> CompanyCode:
@@ -79,6 +85,45 @@ def build_ml_auth_url(
     return f"{auth_url}?{query_params}"
 
 
+def exchange_code_for_ml_tokens(
+    company_code: CompanyCode,
+    code: str,
+    code_verifier: str,
+) -> dict[str, str | int]:
+    client_id = _require_env_value(company_code, "CLIENT_ID")
+    client_secret = _require_env_value(company_code, "CLIENT_SECRET")
+    redirect_uri = _require_env_value(company_code, "REDIRECT_URI")
+    token_url = os.getenv(_env_key(company_code, "TOKEN_URL"), DEFAULT_ML_TOKEN_URL).strip()
+
+    token_data = _post_ml_token_request(
+        token_url=token_url,
+        payload_data={
+            "grant_type": "authorization_code",
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "code": code,
+            "redirect_uri": redirect_uri,
+            "code_verifier": code_verifier,
+        },
+        action_label="trocar code por token",
+    )
+
+    return _validate_token_data(token_data, "troca de code")
+
+
+def calculate_expires_at(token_data: dict[str, str | int]) -> datetime | None:
+    expires_in = token_data.get("expires_in")
+    if expires_in is None:
+        return None
+
+    try:
+        seconds = int(expires_in)
+    except (TypeError, ValueError):
+        return None
+
+    return datetime.now(UTC) + timedelta(seconds=seconds)
+
+
 def _env_key(company_code: CompanyCode, field: str) -> str:
     return f"{company_code}_ML_{field}"
 
@@ -89,3 +134,45 @@ def _require_env_value(company_code: CompanyCode, field: str) -> str:
     if not value:
         raise ValueError(f"Variavel de ambiente obrigatoria ausente: {key}")
     return value
+
+
+def _post_ml_token_request(
+    token_url: str,
+    payload_data: dict[str, str],
+    action_label: str,
+) -> dict[str, Any]:
+    payload = urlencode(payload_data).encode("utf-8")
+
+    request = Request(
+        token_url,
+        data=payload,
+        headers={"Content-Type": "application/x-www-form-urlencoded", "accept": "application/json"},
+        method="POST",
+    )
+
+    try:
+        with urlopen(request, timeout=20) as response:
+            body = response.read().decode("utf-8")
+    except HTTPError as exc:
+        error_body = exc.read().decode("utf-8", errors="ignore")
+        raise ValueError(
+            f"Falha ao {action_label} no Mercado Livre. Status {exc.code}. Body: {error_body}"
+        ) from exc
+    except URLError as exc:
+        raise ValueError(
+            f"Erro de conexao ao token endpoint do Mercado Livre: {exc.reason}"
+        ) from exc
+
+    try:
+        return loads(body)
+    except JSONDecodeError as exc:
+        raise ValueError(f"Resposta invalida do Mercado Livre ao {action_label}.") from exc
+
+
+def _validate_token_data(
+    token_data: dict[str, Any],
+    context_label: str,
+) -> dict[str, str | int]:
+    if "access_token" not in token_data:
+        raise ValueError(f"Resposta do Mercado Livre sem access_token na {context_label}.")
+    return token_data
