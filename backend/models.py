@@ -26,3 +26,18 @@ class OAuthConnection(Base):
     updated_at: Mapped[DateTime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
+
+
+class OAuthState(Base):
+    __tablename__ = "oauth_states"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    state: Mapped[str] = mapped_column(String(500), nullable=False, unique=True, index=True)
+    company_code: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+    provider: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    code_verifier: Mapped[str] = mapped_column(String(255), nullable=False)
+    expires_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    used_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    created_at: Mapped[DateTime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )

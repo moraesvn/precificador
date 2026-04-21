@@ -1,5 +1,5 @@
 from backend.db import Base, engine
-from backend.models import OAuthConnection  # noqa: F401
+from backend.models import OAuthConnection, OAuthState  # noqa: F401
 
 
 def run_startup_tasks() -> None:
