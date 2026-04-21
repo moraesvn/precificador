@@ -7,6 +7,7 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: ${DATABASE_URL}
+      INTERNAL_JOB_TOKEN: ${INTERNAL_JOB_TOKEN:-}
       SP_TINY_CLIENT_ID: ${SP_TINY_CLIENT_ID:-}
       SP_TINY_CLIENT_SECRET: ${SP_TINY_CLIENT_SECRET:-}
       SP_TINY_REDIRECT_URI: ${SP_TINY_REDIRECT_URI:-}

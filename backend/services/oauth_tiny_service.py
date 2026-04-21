@@ -1,6 +1,7 @@
 import os
 from datetime import UTC, datetime, timedelta
 from json import JSONDecodeError, loads
+from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -87,15 +88,55 @@ def exchange_code_for_tiny_tokens(company_code: CompanyCode, code: str) -> dict[
     client_secret = _require_env_value(company_code, "CLIENT_SECRET")
     redirect_uri = _require_env_value(company_code, "REDIRECT_URI")
 
-    payload = urlencode(
+    token_data = _post_tiny_token_request(
         {
             "grant_type": "authorization_code",
             "code": code,
             "client_id": client_id,
             "client_secret": client_secret,
             "redirect_uri": redirect_uri,
-        }
-    ).encode("utf-8")
+        },
+        "trocar code por token",
+    )
+
+    return _validate_token_data(token_data, "troca de code")
+
+
+def refresh_tiny_tokens(
+    company_code: CompanyCode,
+    refresh_token: str,
+) -> dict[str, str | int]:
+    client_id = _require_env_value(company_code, "CLIENT_ID")
+    client_secret = _require_env_value(company_code, "CLIENT_SECRET")
+
+    token_data = _post_tiny_token_request(
+        {
+            "grant_type": "refresh_token",
+            "refresh_token": refresh_token,
+            "client_id": client_id,
+            "client_secret": client_secret,
+        },
+        "renovar token",
+    )
+
+    return _validate_token_data(token_data, "refresh token")
+
+
+def calculate_expires_at(token_data: dict[str, str | int]) -> datetime | None:
+    expires_in = token_data.get("expires_in")
+    if expires_in is None:
+        return None
+
+    try:
+        seconds = int(expires_in)
+    except (TypeError, ValueError):
+        return None
+
+    return datetime.now(UTC) + timedelta(seconds=seconds)
+
+
+def _post_tiny_token_request(payload_data: dict[str, str], action_label: str) -> dict[str, Any]:
+    payload = urlencode(payload_data).encode("utf-8")
 
     request = Request(
         TINY_TOKEN_URL,
@@ -110,30 +151,21 @@ def exchange_code_for_tiny_tokens(company_code: CompanyCode, code: str) -> dict[
     except HTTPError as exc:
         error_body = exc.read().decode("utf-8", errors="ignore")
         raise ValueError(
-            f"Falha ao trocar code por token no Tiny. Status {exc.code}. Body: {error_body}"
+            f"Falha ao {action_label} no Tiny. Status {exc.code}. Body: {error_body}"
         ) from exc
     except URLError as exc:
         raise ValueError(f"Erro de conexao ao token endpoint do Tiny: {exc.reason}") from exc
 
     try:
-        token_data = loads(body)
+        return loads(body)
     except JSONDecodeError as exc:
-        raise ValueError("Resposta invalida do Tiny ao trocar token.") from exc
+        raise ValueError(f"Resposta invalida do Tiny ao {action_label}.") from exc
 
+
+def _validate_token_data(
+    token_data: dict[str, Any],
+    context_label: str,
+) -> dict[str, str | int]:
     if "access_token" not in token_data:
-        raise ValueError("Resposta do Tiny sem access_token.")
-
+        raise ValueError(f"Resposta do Tiny sem access_token na {context_label}.")
     return token_data
-
-
-def calculate_expires_at(token_data: dict[str, str | int]) -> datetime | None:
-    expires_in = token_data.get("expires_in")
-    if expires_in is None:
-        return None
-
-    try:
-        seconds = int(expires_in)
-    except (TypeError, ValueError):
-        return None
-
-    return datetime.now(UTC) + timedelta(seconds=seconds)
