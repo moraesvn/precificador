@@ -1,6 +1,7 @@
+import os
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from backend.api.dependencies import get_db
@@ -15,6 +16,7 @@ from backend.services.oauth_ml_service import (
     generate_pkce_pair,
     normalize_company_code,
     parse_ml_oauth_state,
+    refresh_ml_tokens,
 )
 
 
@@ -124,6 +126,75 @@ def ml_callback(
         "state": state,
         "error": None,
         "code": None,
+        "access_token_saved": "true",
+        "refresh_token_saved": "true" if saved_connection.refresh_token else "false",
+        "expires_at": saved_connection.expires_at.isoformat() if saved_connection.expires_at else None,
+    }
+
+
+@router.post("/refresh")
+def ml_refresh(
+    company: str = Query(default="SP"),
+    x_internal_token: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+) -> dict[str, str | None]:
+    configured_internal_token = os.getenv("INTERNAL_JOB_TOKEN", "").strip()
+    if not configured_internal_token:
+        raise HTTPException(
+            status_code=500,
+            detail="Variavel INTERNAL_JOB_TOKEN nao configurada.",
+        )
+
+    if x_internal_token != configured_internal_token:
+        raise HTTPException(status_code=401, detail="Token interno invalido.")
+
+    try:
+        company_code = normalize_company_code(company)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    repository = OAuthConnectionRepository(db)
+    connection = repository.get_by_company_and_provider(
+        company_code=company_code,
+        provider=PROVIDER_ML,
+    )
+
+    if connection is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Conexao OAuth nao encontrada para {company_code} + {PROVIDER_ML}.",
+        )
+
+    if not connection.refresh_token:
+        raise HTTPException(
+            status_code=400,
+            detail="Refresh token ausente para a conexao informada.",
+        )
+
+    try:
+        token_data = refresh_ml_tokens(
+            company_code=company_code,
+            refresh_token=connection.refresh_token,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    saved_connection = repository.upsert_connection_tokens(
+        company_code=company_code,
+        provider=PROVIDER_ML,
+        access_token=str(token_data["access_token"]),
+        refresh_token=str(token_data["refresh_token"]) if token_data.get("refresh_token") else connection.refresh_token,
+        token_type=str(token_data["token_type"]) if token_data.get("token_type") else connection.token_type,
+        scope=str(token_data["scope"]) if token_data.get("scope") else connection.scope,
+        expires_at=calculate_expires_at(token_data),
+        external_account_id=str(token_data["user_id"]) if token_data.get("user_id") else connection.external_account_id,
+    )
+
+    return {
+        "provider": PROVIDER_ML,
+        "company_code": company_code,
+        "message": "Refresh do token Mercado Livre executado com sucesso.",
+        "connection_id": str(saved_connection.id),
         "access_token_saved": "true",
         "refresh_token_saved": "true" if saved_connection.refresh_token else "false",
         "expires_at": saved_connection.expires_at.isoformat() if saved_connection.expires_at else None,

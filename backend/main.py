@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from backend.api.routes.health import router as health_router
 from backend.api.routes.oauth_ml import router as oauth_ml_router
 from backend.api.routes.oauth_tiny import router as oauth_tiny_router
+from backend.api.routes.tiny_produtos import router as tiny_produtos_router
 from backend.core.startup import run_startup_tasks
 
 
@@ -16,4 +17,5 @@ def startup() -> None:
 
 app.include_router(health_router)
 app.include_router(oauth_tiny_router)
+app.include_router(tiny_produtos_router)
 app.include_router(oauth_ml_router)

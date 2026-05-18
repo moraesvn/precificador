@@ -111,6 +111,28 @@ def exchange_code_for_ml_tokens(
     return _validate_token_data(token_data, "troca de code")
 
 
+def refresh_ml_tokens(
+    company_code: CompanyCode,
+    refresh_token: str,
+) -> dict[str, str | int]:
+    client_id = _require_env_value(company_code, "CLIENT_ID")
+    client_secret = _require_env_value(company_code, "CLIENT_SECRET")
+    token_url = os.getenv(_env_key(company_code, "TOKEN_URL"), DEFAULT_ML_TOKEN_URL).strip()
+
+    token_data = _post_ml_token_request(
+        token_url=token_url,
+        payload_data={
+            "grant_type": "refresh_token",
+            "refresh_token": refresh_token,
+            "client_id": client_id,
+            "client_secret": client_secret,
+        },
+        action_label="renovar token",
+    )
+
+    return _validate_token_data(token_data, "refresh token")
+
+
 def calculate_expires_at(token_data: dict[str, str | int]) -> datetime | None:
     expires_in = token_data.get("expires_in")
     if expires_in is None:
