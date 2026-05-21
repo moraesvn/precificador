@@ -90,10 +90,12 @@ def _access_token_with_optional_refresh(
 
 
 @router.get("")
+@router.get("/")
 def listar_produtos_tiny(
     data_alteracao: str = Query(
         ...,
-        description="Filtra pela data de ultima alteracao no Tiny. Exemplo: 2024-01-15 00:00:00",
+        description="Filtro obrigatorio: data de ultima alteracao no Tiny (dataAlteracao).",
+        example="2024-01-15 00:00:00",
     ),
     company: str = Query(default="SP", description="Empresa (ex.: SP, SC)"),
     limit: int = Query(default=100, ge=1, le=500, description="Quantidade maxima por pagina"),
@@ -105,7 +107,10 @@ def listar_produtos_tiny(
         description="A=Ativo, I=Inativo, E=Excluido (opcional)",
     ),
     id_lista_preco: int | None = Query(default=None, description="Lista de precos (opcional)"),
-    x_internal_token: str | None = Header(default=None),
+    x_internal_token: str | None = Header(
+        default=None,
+        description="Token interno (mesmo valor de INTERNAL_JOB_TOKEN no .env da VPS).",
+    ),
     db: Session = Depends(get_db),
 ) -> dict:
     """
