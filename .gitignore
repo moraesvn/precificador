@@ -1,5 +1,8 @@
 # ambiente e configs
 .env
+.venv/
+tools/streamlit/.env
+tools/streamlit/.streamlit/secrets.toml
 __pycache__/
 *.pyc
 .cursorrules
