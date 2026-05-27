@@ -40,5 +40,9 @@ def get_tiny_produtos(params: dict[str, Any]) -> httpx.Response:
     return request("GET", "/tiny/produtos", params=params)
 
 
+def get_tiny_ordens_compra(params: dict[str, Any]) -> httpx.Response:
+    return request("GET", "/tiny/ordens-compra", params=params)
+
+
 def post_tiny_refresh(company: str) -> httpx.Response:
     return request("POST", "/oauth/tiny/refresh", params={"company": company})

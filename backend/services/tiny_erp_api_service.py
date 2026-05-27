@@ -96,4 +96,4 @@ def listar_ordens_compra(
         "limit": limit,
         "offset": offset,
     }
-    return _tiny_get(access_token, "ordens-compra", params)
+    return _tiny_get(access_token, "ordem-compra", params)

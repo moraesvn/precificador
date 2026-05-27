@@ -9,7 +9,12 @@ from typing import Any
 import pandas as pd
 import streamlit as st
 
-from api_client import get_health, get_tiny_produtos, post_tiny_refresh
+from api_client import (
+    get_health,
+    get_tiny_ordens_compra,
+    get_tiny_produtos,
+    post_tiny_refresh,
+)
 from config import config_ok, get_api_base_url, get_internal_token
 
 st.set_page_config(page_title="Precificador — testes API", layout="wide")
@@ -202,6 +207,114 @@ def _tab_produtos() -> None:
     )
 
 
+def _tab_ordens_compra() -> None:
+    st.subheader("Tiny — listar ordens de compra")
+    st.caption("Proxy: `GET /tiny/ordens-compra` (token OAuth fica no servidor)")
+
+    default_start = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+    default_end = datetime.now().strftime("%Y-%m-%d")
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        company = st.selectbox("Empresa", ["SP", "SC"], key="oc_company")
+    with col2:
+        data_inicial = st.text_input(
+            "data_inicial",
+            value=default_start,
+            help="Formato: YYYY-MM-DD",
+            key="oc_data_inicial",
+        )
+    with col3:
+        data_final = st.text_input(
+            "data_final",
+            value=default_end,
+            help="Formato: YYYY-MM-DD",
+            key="oc_data_final",
+        )
+
+    col4, col5 = st.columns(2)
+    with col4:
+        limit = st.number_input("limit", min_value=1, max_value=500, value=100, key="oc_limit")
+    with col5:
+        offset = st.number_input("offset", min_value=0, value=0, key="oc_offset")
+
+    btn_col1, btn_col2, btn_col3 = st.columns(3)
+    with btn_col1:
+        buscar = st.button("Buscar ordens", type="primary", key="btn_ordens_compra")
+    with btn_col2:
+        prev_page = st.button("← Pagina anterior", key="btn_oc_prev")
+    with btn_col3:
+        next_page = st.button("Proxima pagina →", key="btn_oc_next")
+
+    if "oc_offset_state" not in st.session_state:
+        st.session_state.oc_offset_state = int(offset)
+
+    if prev_page:
+        st.session_state.oc_offset_state = max(0, st.session_state.oc_offset_state - int(limit))
+        buscar = True
+    if next_page:
+        st.session_state.oc_offset_state = st.session_state.oc_offset_state + int(limit)
+        buscar = True
+
+    if buscar:
+        if not (prev_page or next_page):
+            st.session_state.oc_offset_state = int(offset)
+
+        params: dict[str, Any] = {
+            "company": company,
+            "data_inicial": data_inicial.strip(),
+            "data_final": data_final.strip(),
+            "limit": int(limit),
+            "offset": st.session_state.oc_offset_state,
+        }
+
+        if not params["data_inicial"] or not params["data_final"]:
+            st.warning("Informe data_inicial e data_final.")
+            return
+
+        with st.spinner("Chamando /tiny/ordens-compra..."):
+            response = get_tiny_ordens_compra(params)
+
+        st.session_state.last_oc_params = params
+        st.session_state.last_oc_response = response
+
+    response = st.session_state.get("last_oc_response")
+    if response is None:
+        return
+
+    st.divider()
+    st.caption(f"HTTP {response.status_code} | params: `{st.session_state.get('last_oc_params')}`")
+
+    try:
+        body = response.json()
+    except Exception:
+        st.code(response.text)
+        return
+
+    if not response.is_success:
+        st.error(body.get("detail", body) if isinstance(body, dict) else body)
+        with st.expander("JSON completo"):
+            st.json(body)
+        return
+
+    rows = _extract_rows(body)
+    if rows:
+        st.metric("Registros nesta pagina", len(rows))
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+    else:
+        st.info("Nenhuma lista reconhecida no JSON (chaves: itens, produtos, data...). Veja o JSON abaixo.")
+
+    with st.expander("JSON bruto"):
+        st.json(body)
+
+    st.download_button(
+        "Baixar JSON",
+        data=json.dumps(body, ensure_ascii=False, indent=2),
+        file_name="tiny_ordens_compra.json",
+        mime="application/json",
+    )
+
+
 def _tab_refresh() -> None:
     st.subheader("Tiny — refresh token")
     st.caption("`POST /oauth/tiny/refresh` — util se o access token expirou")
@@ -218,13 +331,15 @@ def main() -> None:
         st.stop()
 
     st.title("Testes API Precificador")
-    tab_health, tab_produtos, tab_refresh = st.tabs(
-        ["Health", "Produtos Tiny", "Refresh Tiny"]
+    tab_health, tab_produtos, tab_ordens_compra, tab_refresh = st.tabs(
+        ["Health", "Produtos Tiny", "Ordens de Compra Tiny", "Refresh Tiny"]
     )
     with tab_health:
         _tab_health()
     with tab_produtos:
         _tab_produtos()
+    with tab_ordens_compra:
+        _tab_ordens_compra()
     with tab_refresh:
         _tab_refresh()
 
