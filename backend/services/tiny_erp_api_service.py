@@ -10,6 +10,40 @@ from urllib.request import Request, urlopen
 TINY_ERP_PUBLIC_API_V3_BASE = "https://api.tiny.com.br/public-api/v3"
 
 
+def _tiny_get(access_token: str, resource_path: str, params: dict[str, str | int]) -> dict[str, Any]:
+    """
+    Executa uma requisição GET para a API pública v3 do Tiny e retorna o JSON
+    já desserializado.
+    """
+    query = urlencode(params)
+    url = f"{TINY_ERP_PUBLIC_API_V3_BASE}/{resource_path}?{query}"
+
+    request = Request(
+        url,
+        method="GET",
+        headers={
+            "Authorization": f"Bearer {access_token}",
+            "Accept": "application/json",
+        },
+    )
+
+    try:
+        with urlopen(request, timeout=45) as response:
+            body = response.read().decode("utf-8")
+    except HTTPError as exc:
+        error_body = exc.read().decode("utf-8", errors="ignore")
+        raise ValueError(
+            f"Tiny API retornou status {exc.code} no recurso '{resource_path}'. Body: {error_body}"
+        ) from exc
+    except URLError as exc:
+        raise ValueError(f"Erro de conexao com a API do Tiny: {exc.reason}") from exc
+
+    try:
+        return loads(body)
+    except JSONDecodeError as exc:
+        raise ValueError("Resposta da API do Tiny nao e JSON valido.") from exc
+
+
 def listar_produtos(
     access_token: str,
     *,
@@ -39,30 +73,27 @@ def listar_produtos(
     if id_lista_preco is not None:
         params["idListaPreco"] = id_lista_preco
 
-    query = urlencode(params)
-    url = f"{TINY_ERP_PUBLIC_API_V3_BASE}/produtos?{query}"
+    return _tiny_get(access_token, "produtos", params)
 
-    request = Request(
-        url,
-        method="GET",
-        headers={
-            "Authorization": f"Bearer {access_token}",
-            "Accept": "application/json",
-        },
-    )
 
-    try:
-        with urlopen(request, timeout=45) as response:
-            body = response.read().decode("utf-8")
-    except HTTPError as exc:
-        error_body = exc.read().decode("utf-8", errors="ignore")
-        raise ValueError(
-            f"Tiny API retornou status {exc.code} ao listar produtos. Body: {error_body}"
-        ) from exc
-    except URLError as exc:
-        raise ValueError(f"Erro de conexao com a API do Tiny: {exc.reason}") from exc
+def listar_ordens_compra(
+    access_token: str,
+    *,
+    data_inicial: str,
+    data_final: str,
+    limit: int = 100,
+    offset: int = 0,
+) -> dict[str, Any]:
+    """
+    GET /ordens-compra com filtros por intervalo de cadastro/data no Tiny.
 
-    try:
-        return loads(body)
-    except JSONDecodeError as exc:
-        raise ValueError("Resposta da API do Tiny nao e JSON valido.") from exc
+    O Tiny utiliza os parâmetros `dataInicial` e `dataFinal` para o intervalo
+    solicitado.
+    """
+    params: dict[str, str | int] = {
+        "dataInicial": data_inicial,
+        "dataFinal": data_final,
+        "limit": limit,
+        "offset": offset,
+    }
+    return _tiny_get(access_token, "ordens-compra", params)
