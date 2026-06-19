@@ -58,3 +58,11 @@ def get_ml_sale_price(item_id: str, params: dict[str, Any]) -> httpx.Response:
 
 def post_ml_refresh(company: str) -> httpx.Response:
     return request("POST", "/oauth/ml/refresh", params={"company": company})
+
+
+def get_ml_me(params: dict[str, Any]) -> httpx.Response:
+    return request("GET", "/ml/me", params=params)
+
+
+def get_ml_items_search(params: dict[str, Any]) -> httpx.Response:
+    return request("GET", "/ml/items/search", params=params)

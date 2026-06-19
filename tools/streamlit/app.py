@@ -11,6 +11,8 @@ import streamlit as st
 
 from api_client import (
     get_health,
+    get_ml_items_search,
+    get_ml_me,
     get_ml_precos,
     get_ml_sale_price,
     get_tiny_ordens_compra,
@@ -329,26 +331,108 @@ def _tab_refresh() -> None:
 
 
 def _tab_ml_precos() -> None:
-    st.subheader("Mercado Livre — consulta de preços")
-    st.caption(
-        "Proxy: `GET /ml/items/{item_id}/prices` e `/sale_price` "
-        "(token OAuth fica no servidor)"
+    st.subheader("Mercado Livre")
+    st.caption("Token OAuth fica no servidor — testes via proxy da API")
+
+    company = st.selectbox("Empresa", ["SP", "SC"], key="ml_company")
+    item_id = st.text_input(
+        "item_id (para consulta de preços)",
+        placeholder="Ex.: MLB1234567890",
+        help="Use a aba Conta e anúncios para listar IDs sem digitar manualmente",
+        key="ml_item_id",
     )
 
-    col1, col2 = st.columns(2)
-    with col1:
-        company = st.selectbox("Empresa", ["SP", "SC"], key="ml_company")
-    with col2:
-        item_id = st.text_input(
-            "item_id",
-            placeholder="Ex.: MLB1234567890",
-            help="ID do anúncio no Mercado Livre",
-            key="ml_item_id",
-        )
-
-    sub_precos, sub_sale, sub_refresh = st.tabs(
-        ["Todos os preços", "Preço de venda", "Refresh token"]
+    sub_conta, sub_precos, sub_sale, sub_refresh = st.tabs(
+        ["Conta e anúncios", "Todos os preços", "Preço de venda", "Refresh token"]
     )
+
+    with sub_conta:
+        st.caption("`GET /ml/me` e `GET /ml/items/search` — sem informar item_id")
+
+        col_me, col_search = st.columns(2)
+        with col_me:
+            if st.button("Quem sou eu?", type="primary", key="btn_ml_me"):
+                params = {"company": company}
+                with st.spinner("Chamando /ml/me..."):
+                    response = get_ml_me(params)
+                st.session_state.last_ml_me_response = response
+
+        with col_search:
+            status = st.selectbox(
+                "status",
+                ["active", "paused", "closed", "under_review", "inactive"],
+                key="ml_search_status",
+            )
+            limit = st.number_input(
+                "limit", min_value=1, max_value=50, value=10, key="ml_search_limit"
+            )
+            if st.button("Listar meus anúncios", type="primary", key="btn_ml_search"):
+                params = {
+                    "company": company,
+                    "status": status,
+                    "limit": int(limit),
+                    "offset": 0,
+                }
+                with st.spinner("Chamando /ml/items/search..."):
+                    response = get_ml_items_search(params)
+                st.session_state.last_ml_search_response = response
+                st.session_state.last_ml_search_params = params
+
+        me_response = st.session_state.get("last_ml_me_response")
+        if me_response is not None:
+            st.divider()
+            st.markdown("**Perfil autenticado**")
+            st.caption(f"HTTP {me_response.status_code}")
+            try:
+                body = me_response.json()
+            except Exception:
+                st.code(me_response.text)
+            elif not me_response.is_success:
+                st.error(body.get("detail", body) if isinstance(body, dict) else body)
+            elif isinstance(body, dict):
+                cols = st.columns(4)
+                cols[0].metric("ID", body.get("id", "—"))
+                cols[1].metric("Nickname", body.get("nickname", "—"))
+                cols[2].metric("Site", body.get("site_id", "—"))
+                cols[3].metric("País", body.get("country_id", "—"))
+                with st.expander("JSON completo"):
+                    st.json(body)
+
+        search_response = st.session_state.get("last_ml_search_response")
+        if search_response is not None:
+            st.divider()
+            st.markdown("**Anúncios**")
+            st.caption(
+                f"HTTP {search_response.status_code} | "
+                f"params: `{st.session_state.get('last_ml_search_params')}`"
+            )
+            try:
+                body = search_response.json()
+            except Exception:
+                st.code(search_response.text)
+            elif not search_response.is_success:
+                st.error(body.get("detail", body) if isinstance(body, dict) else body)
+                with st.expander("JSON completo"):
+                    st.json(body)
+            elif isinstance(body, dict):
+                results = body.get("results")
+                if isinstance(results, list) and results:
+                    st.metric("Anúncios nesta página", len(results))
+                    rows = [{"item_id": iid} for iid in results]
+                    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+                    st.info("Copie um item_id da lista para testar na aba de preços.")
+                else:
+                    st.info("Nenhum anúncio retornado para os filtros informados.")
+
+                paging = body.get("paging")
+                if isinstance(paging, dict):
+                    st.caption(
+                        f"Total: {paging.get('total', '—')} | "
+                        f"offset: {paging.get('offset', '—')} | "
+                        f"limit: {paging.get('limit', '—')}"
+                    )
+                with st.expander("JSON bruto"):
+                    st.json(body)
 
     with sub_precos:
         st.caption("`GET /ml/items/{item_id}/prices` — standard e promotion")
@@ -445,7 +529,7 @@ def main() -> None:
 
     st.title("Testes API Precificador")
     tab_health, tab_produtos, tab_ordens_compra, tab_ml, tab_refresh = st.tabs(
-        ["Health", "Produtos Tiny", "Ordens de Compra Tiny", "Preços ML", "Refresh Tiny"]
+        ["Health", "Produtos Tiny", "Ordens de Compra Tiny", "Mercado Livre", "Refresh Tiny"]
     )
     with tab_health:
         _tab_health()

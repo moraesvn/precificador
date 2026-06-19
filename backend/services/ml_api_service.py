@@ -12,7 +12,7 @@ ML_API_BASE = "https://api.mercadolibre.com"
 def _ml_get(
     access_token: str,
     resource_path: str,
-    params: dict[str, str] | None = None,
+    params: dict[str, str | int] | None = None,
 ) -> dict[str, Any]:
     """Executa GET na API do Mercado Livre e retorna o JSON desserializado."""
     path = resource_path.lstrip("/")
@@ -77,3 +77,35 @@ def obter_preco_venda(
         params["context"] = context_value
 
     return _ml_get(access_token, f"items/{item_id}/sale_price", params or None)
+
+
+def obter_usuario_autenticado(access_token: str) -> dict[str, Any]:
+    """GET /users/me — dados do vendedor autenticado pelo token."""
+    return _ml_get(access_token, "users/me")
+
+
+def buscar_itens_vendedor(
+    access_token: str,
+    user_id: str,
+    *,
+    status: str | None = None,
+    limit: int = 10,
+    offset: int = 0,
+) -> dict[str, Any]:
+    """
+    GET /users/{user_id}/items/search — anúncios do vendedor sem informar item_id.
+    """
+    user_id = user_id.strip()
+    if not user_id:
+        raise ValueError("user_id obrigatorio.")
+
+    params: dict[str, str | int] = {
+        "limit": limit,
+        "offset": offset,
+    }
+    status_value = (status or "").strip()
+    if status_value:
+        params["status"] = status_value
+
+    return _ml_get(access_token, f"users/{user_id}/items/search", params)
+
