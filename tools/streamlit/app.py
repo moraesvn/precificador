@@ -11,8 +11,11 @@ import streamlit as st
 
 from api_client import (
     get_health,
+    get_ml_precos,
+    get_ml_sale_price,
     get_tiny_ordens_compra,
     get_tiny_produtos,
+    post_ml_refresh,
     post_tiny_refresh,
 )
 from config import config_ok, get_api_base_url, get_internal_token
@@ -325,14 +328,124 @@ def _tab_refresh() -> None:
         _show_response(response)
 
 
+def _tab_ml_precos() -> None:
+    st.subheader("Mercado Livre — consulta de preços")
+    st.caption(
+        "Proxy: `GET /ml/items/{item_id}/prices` e `/sale_price` "
+        "(token OAuth fica no servidor)"
+    )
+
+    col1, col2 = st.columns(2)
+    with col1:
+        company = st.selectbox("Empresa", ["SP", "SC"], key="ml_company")
+    with col2:
+        item_id = st.text_input(
+            "item_id",
+            placeholder="Ex.: MLB1234567890",
+            help="ID do anúncio no Mercado Livre",
+            key="ml_item_id",
+        )
+
+    sub_precos, sub_sale, sub_refresh = st.tabs(
+        ["Todos os preços", "Preço de venda", "Refresh token"]
+    )
+
+    with sub_precos:
+        st.caption("`GET /ml/items/{item_id}/prices` — standard e promotion")
+        if st.button("Consultar preços", type="primary", key="btn_ml_precos"):
+            if not item_id.strip():
+                st.warning("Informe o item_id.")
+            else:
+                params = {"company": company}
+                with st.spinner("Chamando /ml/items/.../prices..."):
+                    response = get_ml_precos(item_id.strip(), params)
+                st.session_state.last_ml_precos_response = response
+                st.session_state.last_ml_precos_params = params
+
+        response = st.session_state.get("last_ml_precos_response")
+        if response is not None:
+            st.divider()
+            st.caption(f"HTTP {response.status_code}")
+            try:
+                body = response.json()
+            except Exception:
+                st.code(response.text)
+                return
+            if not response.is_success:
+                st.error(body.get("detail", body) if isinstance(body, dict) else body)
+                with st.expander("JSON completo"):
+                    st.json(body)
+                return
+
+            prices = body.get("prices") if isinstance(body, dict) else None
+            if isinstance(prices, list) and prices:
+                st.metric("Preços retornados", len(prices))
+                st.dataframe(pd.DataFrame(prices), use_container_width=True, hide_index=True)
+            with st.expander("JSON bruto"):
+                st.json(body)
+
+    with sub_sale:
+        st.caption("`GET /ml/items/{item_id}/sale_price` — preço vencedor no contexto")
+        context = st.text_input(
+            "context (opcional)",
+            value="channel_marketplace",
+            help="Ex.: channel_marketplace,buyer_loyalty_3",
+            key="ml_context",
+        )
+        if st.button("Consultar preço de venda", type="primary", key="btn_ml_sale"):
+            if not item_id.strip():
+                st.warning("Informe o item_id.")
+            else:
+                params: dict[str, Any] = {"company": company}
+                if context.strip():
+                    params["context"] = context.strip()
+                with st.spinner("Chamando /ml/items/.../sale_price..."):
+                    response = get_ml_sale_price(item_id.strip(), params)
+                st.session_state.last_ml_sale_response = response
+                st.session_state.last_ml_sale_params = params
+
+        response = st.session_state.get("last_ml_sale_response")
+        if response is not None:
+            st.divider()
+            st.caption(f"HTTP {response.status_code}")
+            try:
+                body = response.json()
+            except Exception:
+                st.code(response.text)
+                return
+            if not response.is_success:
+                st.error(body.get("detail", body) if isinstance(body, dict) else body)
+                with st.expander("JSON completo"):
+                    st.json(body)
+                return
+
+            if isinstance(body, dict) and "amount" in body:
+                cols = st.columns(3)
+                cols[0].metric("Preço de venda", f"{body.get('amount')} {body.get('currency_id', '')}")
+                regular = body.get("regular_amount")
+                if regular is not None:
+                    cols[1].metric("Preço regular", f"{regular} {body.get('currency_id', '')}")
+                if body.get("metadata"):
+                    cols[2].json(body["metadata"])
+            with st.expander("JSON bruto"):
+                st.json(body)
+
+    with sub_refresh:
+        st.caption("`POST /oauth/ml/refresh` — util se o access token expirou")
+        if st.button("Executar refresh ML", key="btn_ml_refresh"):
+            with st.spinner("Atualizando tokens..."):
+                response = post_ml_refresh(company)
+            _show_response(response)
+
+
 def main() -> None:
     if not _sidebar_status():
         st.title("Configuracao necessaria")
         st.stop()
 
     st.title("Testes API Precificador")
-    tab_health, tab_produtos, tab_ordens_compra, tab_refresh = st.tabs(
-        ["Health", "Produtos Tiny", "Ordens de Compra Tiny", "Refresh Tiny"]
+    tab_health, tab_produtos, tab_ordens_compra, tab_ml, tab_refresh = st.tabs(
+        ["Health", "Produtos Tiny", "Ordens de Compra Tiny", "Preços ML", "Refresh Tiny"]
     )
     with tab_health:
         _tab_health()
@@ -340,6 +453,8 @@ def main() -> None:
         _tab_produtos()
     with tab_ordens_compra:
         _tab_ordens_compra()
+    with tab_ml:
+        _tab_ml_precos()
     with tab_refresh:
         _tab_refresh()
 

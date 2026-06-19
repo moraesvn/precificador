@@ -46,3 +46,15 @@ def get_tiny_ordens_compra(params: dict[str, Any]) -> httpx.Response:
 
 def post_tiny_refresh(company: str) -> httpx.Response:
     return request("POST", "/oauth/tiny/refresh", params={"company": company})
+
+
+def get_ml_precos(item_id: str, params: dict[str, Any]) -> httpx.Response:
+    return request("GET", f"/ml/items/{item_id}/prices", params=params)
+
+
+def get_ml_sale_price(item_id: str, params: dict[str, Any]) -> httpx.Response:
+    return request("GET", f"/ml/items/{item_id}/sale_price", params=params)
+
+
+def post_ml_refresh(company: str) -> httpx.Response:
+    return request("POST", "/oauth/ml/refresh", params={"company": company})
