@@ -46,6 +46,29 @@ def _ml_get(
         raise ValueError("Resposta da API do Mercado Livre nao e JSON valido.") from exc
 
 
+def obter_item(
+    access_token: str,
+    item_id: str,
+    *,
+    include_attributes: str | None = "all",
+) -> dict[str, Any]:
+    """
+    GET /items/{item_id} — detalhe do anúncio.
+
+    Com include_attributes=all a resposta inclui SELLER_SKU e attributes das variações.
+    """
+    item_id = item_id.strip()
+    if not item_id:
+        raise ValueError("item_id obrigatorio.")
+
+    params: dict[str, str] = {}
+    attributes_value = (include_attributes or "").strip()
+    if attributes_value:
+        params["include_attributes"] = attributes_value
+
+    return _ml_get(access_token, f"items/{item_id}", params or None)
+
+
 def obter_precos_item(access_token: str, item_id: str) -> dict[str, Any]:
     """
     GET /items/{item_id}/prices — todos os preços (standard e promotion) do anúncio.

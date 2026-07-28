@@ -11,6 +11,7 @@ import streamlit as st
 
 from api_client import (
     get_health,
+    get_ml_item,
     get_ml_items_search,
     get_ml_me,
     get_ml_precos,
@@ -336,14 +337,20 @@ def _tab_ml_precos() -> None:
 
     company = st.selectbox("Empresa", ["SP", "SC"], key="ml_company")
     item_id = st.text_input(
-        "item_id (para consulta de preços)",
+        "item_id (detalhe / preços)",
         placeholder="Ex.: MLB1234567890",
         help="Use a aba Conta e anúncios para listar IDs sem digitar manualmente",
         key="ml_item_id",
     )
 
-    sub_conta, sub_precos, sub_sale, sub_refresh = st.tabs(
-        ["Conta e anúncios", "Todos os preços", "Preço de venda", "Refresh token"]
+    sub_conta, sub_detalhe, sub_precos, sub_sale, sub_refresh = st.tabs(
+        [
+            "Conta e anúncios",
+            "Detalhe do anúncio",
+            "Todos os preços",
+            "Preço de venda",
+            "Refresh token",
+        ]
     )
 
     with sub_conta:
@@ -387,16 +394,17 @@ def _tab_ml_precos() -> None:
                 body = me_response.json()
             except Exception:
                 st.code(me_response.text)
-            elif not me_response.is_success:
-                st.error(body.get("detail", body) if isinstance(body, dict) else body)
-            elif isinstance(body, dict):
-                cols = st.columns(4)
-                cols[0].metric("ID", body.get("id", "—"))
-                cols[1].metric("Nickname", body.get("nickname", "—"))
-                cols[2].metric("Site", body.get("site_id", "—"))
-                cols[3].metric("País", body.get("country_id", "—"))
-                with st.expander("JSON completo"):
-                    st.json(body)
+            else:
+                if not me_response.is_success:
+                    st.error(body.get("detail", body) if isinstance(body, dict) else body)
+                elif isinstance(body, dict):
+                    cols = st.columns(4)
+                    cols[0].metric("ID", body.get("id", "—"))
+                    cols[1].metric("Nickname", body.get("nickname", "—"))
+                    cols[2].metric("Site", body.get("site_id", "—"))
+                    cols[3].metric("País", body.get("country_id", "—"))
+                    with st.expander("JSON completo"):
+                        st.json(body)
 
         search_response = st.session_state.get("last_ml_search_response")
         if search_response is not None:
@@ -410,29 +418,89 @@ def _tab_ml_precos() -> None:
                 body = search_response.json()
             except Exception:
                 st.code(search_response.text)
-            elif not search_response.is_success:
-                st.error(body.get("detail", body) if isinstance(body, dict) else body)
-                with st.expander("JSON completo"):
-                    st.json(body)
-            elif isinstance(body, dict):
-                results = body.get("results")
-                if isinstance(results, list) and results:
-                    st.metric("Anúncios nesta página", len(results))
-                    rows = [{"item_id": iid} for iid in results]
-                    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-                    st.info("Copie um item_id da lista para testar na aba de preços.")
-                else:
-                    st.info("Nenhum anúncio retornado para os filtros informados.")
+            else:
+                if not search_response.is_success:
+                    st.error(body.get("detail", body) if isinstance(body, dict) else body)
+                    with st.expander("JSON completo"):
+                        st.json(body)
+                elif isinstance(body, dict):
+                    results = body.get("results")
+                    if isinstance(results, list) and results:
+                        st.metric("Anúncios nesta página", len(results))
+                        rows = [{"item_id": iid} for iid in results]
+                        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+                        st.info(
+                            "Copie um item_id da lista para testar em "
+                            "Detalhe do anúncio ou nas abas de preços."
+                        )
+                    else:
+                        st.info("Nenhum anúncio retornado para os filtros informados.")
 
-                paging = body.get("paging")
-                if isinstance(paging, dict):
-                    st.caption(
-                        f"Total: {paging.get('total', '—')} | "
-                        f"offset: {paging.get('offset', '—')} | "
-                        f"limit: {paging.get('limit', '—')}"
+                    paging = body.get("paging")
+                    if isinstance(paging, dict):
+                        st.caption(
+                            f"Total: {paging.get('total', '—')} | "
+                            f"offset: {paging.get('offset', '—')} | "
+                            f"limit: {paging.get('limit', '—')}"
+                        )
+                    with st.expander("JSON bruto"):
+                        st.json(body)
+
+    with sub_detalhe:
+        st.caption(
+            "`GET /ml/items/{item_id}?include_attributes=all` — "
+            "detalhe completo (inclui SELLER_SKU)"
+        )
+        if st.button("Consultar anúncio", type="primary", key="btn_ml_item"):
+            if not item_id.strip():
+                st.warning("Informe o item_id.")
+            else:
+                params = {"company": company, "include_attributes": "all"}
+                with st.spinner("Chamando /ml/items/{item_id}..."):
+                    response = get_ml_item(item_id.strip(), params)
+                st.session_state.last_ml_item_response = response
+                st.session_state.last_ml_item_params = params
+
+        response = st.session_state.get("last_ml_item_response")
+        if response is not None:
+            st.divider()
+            st.caption(
+                f"HTTP {response.status_code} | "
+                f"params: `{st.session_state.get('last_ml_item_params')}`"
+            )
+            try:
+                body = response.json()
+            except Exception:
+                st.code(response.text)
+            else:
+                if not response.is_success:
+                    st.error(body.get("detail", body) if isinstance(body, dict) else body)
+                    with st.expander("JSON completo"):
+                        st.json(body)
+                elif isinstance(body, dict):
+                    cols = st.columns(4)
+                    cols[0].metric("ID", body.get("id", "—"))
+                    cols[1].metric("Status", body.get("status", "—"))
+                    cols[2].metric("Preço", body.get("price", "—"))
+                    cols[3].metric(
+                        "Variações",
+                        len(body.get("variations") or [])
+                        if isinstance(body.get("variations"), list)
+                        else 0,
                     )
-                with st.expander("JSON bruto"):
-                    st.json(body)
+                    st.write(body.get("title", "—"))
+
+                    seller_sku = None
+                    attributes = body.get("attributes")
+                    if isinstance(attributes, list):
+                        for attr in attributes:
+                            if isinstance(attr, dict) and attr.get("id") == "SELLER_SKU":
+                                seller_sku = attr.get("value_name")
+                                break
+                    st.caption(f"SELLER_SKU (item): `{seller_sku or '—'}`")
+
+                    with st.expander("JSON completo"):
+                        st.json(body)
 
     with sub_precos:
         st.caption("`GET /ml/items/{item_id}/prices` — standard e promotion")

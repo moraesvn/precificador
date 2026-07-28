@@ -2,8 +2,15 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from backend.api.dependencies import get_db
-from backend.api.routes.ml_auth import get_ml_connection_with_optional_refresh
-from backend.services.ml_api_service import buscar_itens_vendedor, obter_usuario_autenticado
+from backend.api.routes.ml_auth import (
+    get_ml_access_token_with_optional_refresh,
+    get_ml_connection_with_optional_refresh,
+)
+from backend.services.ml_api_service import (
+    buscar_itens_vendedor,
+    obter_item,
+    obter_usuario_autenticado,
+)
 
 
 router = APIRouter(prefix="/ml", tags=["ml-conta"])
@@ -68,5 +75,36 @@ def buscar_anuncios_ml(
             limit=limit,
             offset=offset,
         )
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@router.get("/items/{item_id}")
+def obter_anuncio_ml(
+    item_id: str,
+    company: str = Query(default="SP", description="Empresa (ex.: SP, SC)"),
+    include_attributes: str | None = Query(
+        default="all",
+        description=(
+            "Atributos extras na resposta. Use 'all' para incluir SELLER_SKU "
+            "e attributes das variações."
+        ),
+    ),
+    x_internal_token: str | None = Header(
+        default=None,
+        description="Token interno (mesmo valor de INTERNAL_JOB_TOKEN no .env da VPS).",
+    ),
+    db: Session = Depends(get_db),
+) -> dict:
+    """
+    Proxy seguro para GET /items/{item_id} da API do Mercado Livre.
+
+    Com include_attributes=all (padrão) é possível localizar SELLER_SKU no item
+    e nas variações.
+    """
+    token = get_ml_access_token_with_optional_refresh(db, company, x_internal_token)
+
+    try:
+        return obter_item(token, item_id, include_attributes=include_attributes)
     except ValueError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
