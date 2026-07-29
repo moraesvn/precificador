@@ -68,5 +68,9 @@ def get_ml_items_search(params: dict[str, Any]) -> httpx.Response:
     return request("GET", "/ml/items/search", params=params)
 
 
+def get_ml_items_scan(params: dict[str, Any]) -> httpx.Response:
+    return request("GET", "/ml/items/scan", params=params, timeout=120.0)
+
+
 def get_ml_item(item_id: str, params: dict[str, Any]) -> httpx.Response:
     return request("GET", f"/ml/items/{item_id}", params=params)

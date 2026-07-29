@@ -12,6 +12,7 @@ import streamlit as st
 from api_client import (
     get_health,
     get_ml_item,
+    get_ml_items_scan,
     get_ml_items_search,
     get_ml_me,
     get_ml_precos,
@@ -385,6 +386,17 @@ def _tab_ml_precos() -> None:
                 st.session_state.last_ml_search_response = response
                 st.session_state.last_ml_search_params = params
 
+        if st.button(
+            "Listar todos os anúncios ativos (scan)",
+            type="secondary",
+            key="btn_ml_scan",
+        ):
+            params = {"company": company, "limit_per_page": 100}
+            with st.spinner("Percorrendo todas as páginas de anúncios ativos..."):
+                response = get_ml_items_scan(params)
+            st.session_state.last_ml_scan_response = response
+            st.session_state.last_ml_scan_params = params
+
         me_response = st.session_state.get("last_ml_me_response")
         if me_response is not None:
             st.divider()
@@ -443,6 +455,41 @@ def _tab_ml_precos() -> None:
                             f"offset: {paging.get('offset', '—')} | "
                             f"limit: {paging.get('limit', '—')}"
                         )
+                    with st.expander("JSON bruto"):
+                        st.json(body)
+
+        scan_response = st.session_state.get("last_ml_scan_response")
+        if scan_response is not None:
+            st.divider()
+            st.markdown("**Todos os anúncios ativos (scan)**")
+            st.caption(
+                f"HTTP {scan_response.status_code} | "
+                f"params: `{st.session_state.get('last_ml_scan_params')}`"
+            )
+            try:
+                body = scan_response.json()
+            except Exception:
+                st.code(scan_response.text)
+            else:
+                if not scan_response.is_success:
+                    st.error(body.get("detail", body) if isinstance(body, dict) else body)
+                elif isinstance(body, dict):
+                    cols = st.columns(3)
+                    cols[0].metric("Total ativo", body.get("total", "—"))
+                    cols[1].metric("Páginas percorridas", body.get("pages", "—"))
+                    cols[2].metric("Seller", body.get("seller_id", "—"))
+
+                    results = body.get("results")
+                    if isinstance(results, list) and results:
+                        rows = [{"item_id": item_id} for item_id in results]
+                        st.dataframe(
+                            pd.DataFrame(rows),
+                            use_container_width=True,
+                            hide_index=True,
+                        )
+                    else:
+                        st.info("Nenhum anúncio ativo encontrado.")
+
                     with st.expander("JSON bruto"):
                         st.json(body)
 

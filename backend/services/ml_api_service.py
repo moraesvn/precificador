@@ -132,3 +132,68 @@ def buscar_itens_vendedor(
 
     return _ml_get(access_token, f"users/{user_id}/items/search", params)
 
+
+def buscar_todos_itens_ativos_vendedor(
+    access_token: str,
+    user_id: str,
+    *,
+    limit_per_page: int = 100,
+) -> dict[str, Any]:
+    """
+    Lista todos os anúncios ativos do vendedor usando search_type=scan.
+
+    O scan é necessário para contas com mais de 1.000 anúncios. As páginas são
+    percorridas até o Mercado Livre retornar results vazio ou nulo.
+    """
+    user_id = user_id.strip()
+    if not user_id:
+        raise ValueError("user_id obrigatorio.")
+    if not 1 <= limit_per_page <= 100:
+        raise ValueError("limit_per_page deve estar entre 1 e 100.")
+
+    resource_path = f"users/{user_id}/items/search"
+    params: dict[str, str | int] = {
+        "search_type": "scan",
+        "status": "active",
+        "limit": limit_per_page,
+    }
+    item_ids: list[str] = []
+    seen_item_ids: set[str] = set()
+    pages = 0
+    scroll_id: str | None = None
+
+    while True:
+        response = _ml_get(access_token, resource_path, params)
+        pages += 1
+
+        results = response.get("results")
+        if not results:
+            break
+        if not isinstance(results, list):
+            raise ValueError("Resposta do scan sem lista valida em results.")
+
+        for item_id in results:
+            normalized_item_id = str(item_id).strip()
+            if normalized_item_id and normalized_item_id not in seen_item_ids:
+                seen_item_ids.add(normalized_item_id)
+                item_ids.append(normalized_item_id)
+
+        response_scroll_id = str(response.get("scroll_id") or "").strip()
+        if not response_scroll_id:
+            raise ValueError("Mercado Livre nao retornou scroll_id para continuar o scan.")
+
+        scroll_id = response_scroll_id
+        params = {
+            "search_type": "scan",
+            "scroll_id": scroll_id,
+            "limit": limit_per_page,
+        }
+
+    return {
+        "seller_id": user_id,
+        "status": "active",
+        "total": len(item_ids),
+        "pages": pages,
+        "results": item_ids,
+    }
+

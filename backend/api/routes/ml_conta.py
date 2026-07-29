@@ -8,6 +8,7 @@ from backend.api.routes.ml_auth import (
 )
 from backend.services.ml_api_service import (
     buscar_itens_vendedor,
+    buscar_todos_itens_ativos_vendedor,
     obter_item,
     obter_usuario_autenticado,
 )
@@ -74,6 +75,45 @@ def buscar_anuncios_ml(
             status=status,
             limit=limit,
             offset=offset,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@router.get("/items/scan")
+def buscar_todos_anuncios_ativos_ml(
+    company: str = Query(default="SP", description="Empresa (ex.: SP, SC)"),
+    limit_per_page: int = Query(
+        default=100,
+        ge=1,
+        le=100,
+        description="Tamanho de cada página do scan; não limita o total retornado.",
+    ),
+    x_internal_token: str | None = Header(
+        default=None,
+        description="Token interno (mesmo valor de INTERNAL_JOB_TOKEN no .env da VPS).",
+    ),
+    db: Session = Depends(get_db),
+) -> dict:
+    """
+    Lista todos os anúncios ativos usando scan, inclusive acima de 1.000 itens.
+
+    O endpoint percorre as páginas até o Mercado Livre encerrar o scan.
+    """
+    connection = get_ml_connection_with_optional_refresh(db, company, x_internal_token)
+    user_id = (connection.external_account_id or "").strip()
+
+    try:
+        if not user_id:
+            profile = obter_usuario_autenticado(connection.access_token)
+            user_id = str(profile.get("id", "")).strip()
+        if not user_id:
+            raise ValueError("Nao foi possivel obter user_id do Mercado Livre.")
+
+        return buscar_todos_itens_ativos_vendedor(
+            connection.access_token,
+            user_id,
+            limit_per_page=limit_per_page,
         )
     except ValueError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
