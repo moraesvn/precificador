@@ -142,20 +142,20 @@ Tradicional → Catálogo → Tradicional
 - Criar uma revisão-base do esquema atual.
 - Marcar a revisão no PostgreSQL existente.
 
-Status: estrutura Alembic e revisão-base criadas.
+Status: concluída (`stamp 20260729_01`).
 
 ### Etapa 2 — Modelo normalizado
 
 - Criar `ml_listings`.
 - Criar `ml_listing_relations`.
-- Adaptar `ml_listing_skus` para referenciar `ml_listings`.
+- Adaptar `ml_listing_skus` para referenciar `ml_listings` (`listing_id` nullable).
 - Ampliar os contadores de `ml_sync_runs`.
+
+Status: models e revisão `20260729_02` criados. Aplicar com `alembic upgrade head` na VPS.
 
 ### Etapa 3 — Migração dos dados atuais
 
-- Copiar os anúncios já sincronizados para `ml_listings`.
-- Preservar os SKUs existentes.
-- Validar contagens antes de remover campos antigos.
+Pulada: o catálogo será preenchido do zero pela sincronização completa.
 
 ### Etapa 4 — Sincronizador completo
 
@@ -192,13 +192,19 @@ alembic stamp 20260729_01
 
 Esse comando apenas registra a revisão; ele não recria nem apaga tabelas.
 
-Para um banco vazio:
+Para aplicar a revisão do modelo normalizado (e as próximas):
 
 ```bash
 alembic upgrade head
 ```
 
-Não executar `upgrade` da revisão-base diretamente no banco existente, pois as tabelas já foram criadas pelo sistema anterior.
+Para um banco vazio do zero:
+
+```bash
+alembic upgrade head
+```
+
+Não executar `upgrade` da revisão-base sozinha no banco existente sem `stamp` prévio, pois as tabelas já foram criadas pelo sistema anterior.
 
 ## Critérios para liberar o promocionador
 

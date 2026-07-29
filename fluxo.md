@@ -24,12 +24,16 @@ SELLER_SKU → ITEM_ID (MLB...) → VARIATION_ID (quando existir)
 4. Salvar ou atualizar o relacionamento na tabela auxiliar.
 5. Identificar anúncios sem SKU, SKUs duplicados e anúncios inativos.
 
-### Persistência implementada
+### Persistência
 
 ```text
-ml_listing_skus → relacionamento SKU, anúncio, variação, status e datas
-ml_sync_runs    → andamento, contagens, erros e horário de cada sincronização
+ml_listings           → uma linha por ITEM_ID (classificação, preços, catálogo)
+ml_listing_skus       → relacionamento SKU × anúncio/variação (listing_id → ml_listings)
+ml_listing_relations  → relações tradicional ↔ catálogo (item_relations)
+ml_sync_runs          → andamento, contagens por tipo, relações e erros
 ```
+
+O sincronizador atual ainda grava só em `ml_listing_skus`. O preenchimento completo de `ml_listings` e `ml_listing_relations` entra na próxima etapa.
 
 O valor original do SKU é preservado em `seller_sku`. Uma versão normalizada em `normalized_sku` remove espaços nas extremidades e trata diferenças entre letras maiúsculas e minúsculas.
 

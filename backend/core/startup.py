@@ -1,5 +1,7 @@
 from backend.db import Base, engine
 from backend.models import (  # noqa: F401
+    MLListing,
+    MLListingRelation,
     MLListingSku,
     MLSyncRun,
     OAuthConnection,
