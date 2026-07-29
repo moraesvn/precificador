@@ -3,6 +3,7 @@
 .venv/
 tools/streamlit/.env
 tools/streamlit/.streamlit/secrets.toml
+tools/streamlit/
 __pycache__/
 *.pyc
 .cursorrules
