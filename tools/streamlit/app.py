@@ -526,8 +526,6 @@ def _tab_ml_precos() -> None:
             else:
                 if not response.is_success:
                     st.error(body.get("detail", body) if isinstance(body, dict) else body)
-                    with st.expander("JSON completo"):
-                        st.json(body)
                 elif isinstance(body, dict):
                     cols = st.columns(4)
                     cols[0].metric("ID", body.get("id", "—"))
@@ -550,8 +548,27 @@ def _tab_ml_precos() -> None:
                                 break
                     st.caption(f"SELLER_SKU (item): `{seller_sku or '—'}`")
 
-                    with st.expander("JSON completo"):
-                        st.json(body)
+                json_text = json.dumps(body, ensure_ascii=False, indent=2)
+                file_name = "ml_item.json"
+                if isinstance(body, dict) and body.get("id"):
+                    file_name = f"{body['id']}.json"
+
+                with st.expander("JSON completo"):
+                    st.json(body)
+                    st.download_button(
+                        "Baixar JSON",
+                        data=json_text,
+                        file_name=file_name,
+                        mime="application/json",
+                        key="btn_ml_item_download",
+                    )
+                    st.text_area(
+                        "JSON para copiar",
+                        value=json_text,
+                        height=280,
+                        key="ml_item_json_copy",
+                        help="Ctrl+A e Ctrl+C para copiar o JSON formatado.",
+                    )
 
     with sub_sync:
         st.caption(

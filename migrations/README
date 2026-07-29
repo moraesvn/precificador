@@ -1,0 +1,9 @@
+Migrações de banco do projeto Precificador.
+
+Banco existente:
+    alembic stamp 20260729_01
+
+Banco novo:
+    alembic upgrade head
+
+Antes de executar, configure DATABASE_URL no ambiente.

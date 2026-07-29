@@ -1,194 +1,217 @@
-# Briefing — Promoções no Mercado Livre
+# Briefing — Catálogo de anúncios e promocionador
 
 ## Objetivo
 
-Automatizar a criação de promoções tradicionais no Mercado Livre para produtos recebidos do Tiny, usando o SKU para localizar a publicação correspondente.
-
-## Resumo da solução
-
-O fluxo recomendado é:
+Receber SKUs do Tiny, localizar todas as ofertas correspondentes no Mercado Livre e aplicar promoções nos anúncios ativos e elegíveis.
 
 ```text
-SKU do Tiny → SELLER_SKU do Mercado Livre → ITEM_ID (MLB...) → promoção
+SKUs do Tiny
+     ↓
+Catálogo local de anúncios do ML
+     ↓
+Validação e escolha das ofertas
+     ↓
+Criação da promoção
 ```
 
-O SKU é utilizado somente para cruzar os produtos. A API de promoções exige o `ITEM_ID` da publicação do Mercado Livre.
+A origem dos SKUs no Tiny ainda será definida. O trabalho atual está concentrado na construção de um catálogo local completo e confiável do Mercado Livre.
 
-Na promoção tradicional, a API recebe o preço promocional final em reais (`deal_price`), e não o percentual de desconto. Caso o usuário informe uma porcentagem, o sistema deverá calcular o preço antes do envio.
+## O que já foi validado
 
-## Etapas para aplicar uma promoção
-
-### 1. Autenticar no Mercado Livre
-
-Obter um `ACCESS_TOKEN` válido da conta vendedora e identificar o `SELLER_ID`.
-
-### 2. Listar as publicações do vendedor
-
-Consultar os anúncios ativos:
-
-```http
-GET /users/{SELLER_ID}/items/search?status=active
-```
-
-Para contas com mais de 1.000 anúncios, utilizar a paginação por Scan recomendada pelo Mercado Livre.
-
-### 3. Relacionar os SKUs
-
-Consultar os detalhes de cada publicação:
-
-```http
-GET /items/{ITEM_ID}?include_attributes=all
-```
-
-Localizar o atributo `SELLER_SKU`:
-
-- Em `attributes`, para anúncios sem variações.
-- Em `variations[].attributes`, para anúncios com variações.
-
-Criar e manter um relacionamento local:
-
-```text
-SELLER_ID + SKU + ITEM_ID + VARIATION_ID (quando existir)
-```
-
-Antes de prosseguir, validar:
-
-- SKUs ausentes;
-- SKUs duplicados;
-- diferenças de espaços, letras maiúsculas e zeros à esquerda;
-- produtos do Tiny sem publicação correspondente;
-- anúncios com vários SKUs dentro do mesmo `ITEM_ID`.
-
-### 4. Criar a campanha
-
-Criar uma campanha do vendedor:
-
-```http
-POST /seller-promotions/promotions?app_version=v2
-```
-
-Exemplo:
-
-```json
-{
-  "promotion_type": "SELLER_CAMPAIGN",
-  "name": "Promoção de produtos",
-  "sub_type": "FLEXIBLE_PERCENTAGE",
-  "start_date": "2026-07-29T00:00:00",
-  "finish_date": "2026-08-05T00:00:00"
-}
-```
-
-A campanha pode durar no máximo 14 dias.
-
-### 5. Consultar os produtos elegíveis
-
-Consultar os itens candidatos:
-
-```http
-GET /seller-promotions/promotions/{PROMOTION_ID}/items?promotion_type=SELLER_CAMPAIGN&app_version=v2
-```
-
-Somente produtos com status `candidate` devem ser adicionados.
-
-Para ser elegível, o vendedor e o anúncio devem atender aos seguintes requisitos:
-
-- reputação verde;
-- anúncio ativo;
-- produto novo;
-- exposição não gratuita.
-
-### 6. Calcular o preço promocional
-
-A API recebe o preço final em reais:
-
-```text
-preço promocional = preço original × (1 - percentual / 100)
-```
+- O OAuth do Mercado Livre está funcionando.
+- Todos os anúncios encontrados possuem `SELLER_SKU`.
+- Um SKU pode estar associado a vários `ITEM_ID`s.
+- O mesmo SKU pode possuir anúncios Premium, Clássicos e de catálogo.
+- Anúncios de catálogo podem não aparecer no scan principal.
+- O campo `item_relations` conecta o anúncio tradicional ao anúncio de catálogo.
+- A relação é bidirecional e pode gerar ciclos.
 
 Exemplo:
 
 ```text
-Preço original: R$ 100,00
-Desconto: 10%
-Preço enviado em deal_price: R$ 90,00
+SKU 4063
+├── Tradicional Premium
+│   └── Catálogo Premium relacionado
+├── Outro tradicional Premium
+│   └── Outro catálogo relacionado
+└── Tradicional Clássico
 ```
 
-O sistema deve aplicar o arredondamento monetário antes do envio.
+## Como classificar um anúncio
 
-### 7. Adicionar o produto à campanha
+### Tipo de exposição
 
-Enviar o `ITEM_ID` e o preço promocional:
+Usar `listing_type_id` como fonte:
 
-```http
-POST /seller-promotions/items/{ITEM_ID}?app_version=v2
+```text
+gold_pro     → Premium
+gold_special → Clássico
+free         → Grátis
 ```
 
-Exemplo:
+Valores desconhecidos devem ser preservados e exibidos sem conversão incorreta.
 
-```json
-{
-  "promotion_id": "C-MLB123",
-  "promotion_type": "SELLER_CAMPAIGN",
-  "deal_price": 90.00
-}
+### Catálogo
+
+Usar `catalog_listing` como fonte principal:
+
+```text
+catalog_listing = true  → anúncio de catálogo
+catalog_listing = false → anúncio tradicional
 ```
 
-O campo opcional `top_deal_price` pode definir um preço adicional para compradores elegíveis do Mercado Pontos.
+O campo `catalog_product_id` apenas informa a associação ao produto oficial. Ele não determina sozinho que a publicação seja de catálogo.
 
-### 8. Confirmar o resultado
+A tag `catalog_boost` identifica anúncios de catálogo criados automaticamente pelo Mercado Livre.
 
-Consultar o preço efetivamente exibido:
+## Estrutura de dados planejada
 
-```http
-GET /items/{ITEM_ID}/sale_price?context=channel_marketplace
+### `ml_listings`
+
+Uma linha por `ITEM_ID`, contendo:
+
+- identificação da empresa, vendedor e anúncio;
+- título, permalink e situação;
+- `listing_type_id`;
+- `catalog_listing`, `catalog_product_id` e `catalog_boost`;
+- `user_product_id`, `family_id` e `parent_item_id`;
+- preços, moeda, estoque e vendas;
+- condição, canais, tags e logística;
+- datas do anúncio e da sincronização;
+- origem da descoberta: scan, catálogo ou relação.
+
+### `ml_listing_skus`
+
+Relacionamento entre anúncio, variação e SKU:
+
+```text
+listing_id
+variation_id
+seller_sku
+normalized_sku
 ```
 
-Validar:
+Um anúncio poderá possuir vários SKUs quando tiver variações. Um SKU também poderá apontar para vários anúncios.
 
-- `amount`: preço atual exibido;
-- `regular_amount`: preço original;
-- identificador e tipo da promoção.
+### `ml_listing_relations`
 
-Também é necessário registrar erros, itens rejeitados e o resultado individual de cada produto.
+Relacionamentos encontrados em `item_relations`:
 
-## Atualização e remoção
-
-Para alterar o preço promocional:
-
-```http
-PUT /seller-promotions/items/{ITEM_ID}?app_version=v2
+```text
+source_item_id
+related_item_id
+related_variation_id
+stock_relation
 ```
 
-Em uma promoção ativa, o preço somente pode ser reduzido. Enquanto estiver pendente, há maior flexibilidade para alterações.
+### `ml_sync_runs`
 
-Para retirar um produto:
+Histórico de cada sincronização:
 
-```http
-DELETE /seller-promotions/items/{ITEM_ID}?promotion_type=SELLER_CAMPAIGN&promotion_id={PROMOTION_ID}&app_version=v2
+- início, fim e status;
+- anúncios encontrados e processados;
+- quantidade por tipo;
+- anúncios sem SKU;
+- relações encontradas;
+- erros.
+
+## Fluxo completo da sincronização
+
+1. Iniciar uma execução em segundo plano.
+2. Buscar todos os anúncios ativos com `search_type=scan`.
+3. Buscar também anúncios ativos com tag `catalog_boost`.
+4. Unir e remover IDs duplicados.
+5. Consultar detalhes em lotes.
+6. Extrair classificação, preços, SKU e relações.
+7. Adicionar à fila os IDs de `item_relations` ainda não visitados.
+8. Repetir até não existirem novos IDs.
+9. Persistir anúncios, SKUs e relações no PostgreSQL.
+10. Inativar registros ausentes somente se a execução terminar sem erros.
+
+O sincronizador deverá manter um conjunto de IDs visitados para impedir ciclos:
+
+```text
+Tradicional → Catálogo → Tradicional
 ```
 
-## Limitação importante
+## Plano de execução
 
-A promoção é aplicada ao `ITEM_ID`, não ao `VARIATION_ID`.
+### Etapa 1 — Migrações
 
-Se vários SKUs do Tiny forem variações da mesma publicação, eles apontarão para o mesmo anúncio, e a promoção será aplicada à publicação inteira. A API documentada não permite promover isoladamente apenas uma variação.
+- Adicionar Alembic ao projeto.
+- Criar uma revisão-base do esquema atual.
+- Marcar a revisão no PostgreSQL existente.
 
-## Recomendação para implantação
+Status: estrutura Alembic e revisão-base criadas.
 
-Realizar primeiro uma prova de conceito com poucos produtos:
+### Etapa 2 — Modelo normalizado
 
-1. Selecionar anúncios com e sem variações.
-2. Confirmar o cruzamento por `SELLER_SKU`.
-3. Criar uma campanha curta.
-4. Consultar os itens candidatos.
-5. Aplicar preços promocionais em poucos anúncios.
-6. Confirmar os preços na API e na página do produto.
-7. Validar limites de desconto e mensagens de erro.
-8. Somente depois liberar o processamento em lote.
+- Criar `ml_listings`.
+- Criar `ml_listing_relations`.
+- Adaptar `ml_listing_skus` para referenciar `ml_listings`.
+- Ampliar os contadores de `ml_sync_runs`.
 
-## Referências oficiais
+### Etapa 3 — Migração dos dados atuais
+
+- Copiar os anúncios já sincronizados para `ml_listings`.
+- Preservar os SKUs existentes.
+- Validar contagens antes de remover campos antigos.
+
+### Etapa 4 — Sincronizador completo
+
+- Incluir busca de `catalog_boost`.
+- Seguir `item_relations`.
+- Classificar Premium, Clássico, catálogo e tradicional.
+- Persistir todas as relações.
+
+### Etapa 5 — Consulta e conferência
+
+- Consultar anúncios agrupados por SKU.
+- Exibir tipo, catálogo, preço, estoque e relação.
+- Mostrar divergências e anúncios duplicados.
+
+### Etapa 6 — Promocionador
+
+- Receber SKUs do Tiny.
+- Encontrar todos os MLBs ativos.
+- Consultar itens candidatos à campanha.
+- Calcular o preço promocional.
+- Exibir prévia e solicitar confirmação.
+- Aplicar a promoção em cada `ITEM_ID` elegível.
+- Registrar resultados e erros individualmente.
+
+## Operação do Alembic
+
+Definir `DATABASE_URL` antes dos comandos.
+
+Para o PostgreSQL existente, que já possui as tabelas atuais:
+
+```bash
+alembic stamp 20260729_01
+```
+
+Esse comando apenas registra a revisão; ele não recria nem apaga tabelas.
+
+Para um banco vazio:
+
+```bash
+alembic upgrade head
+```
+
+Não executar `upgrade` da revisão-base diretamente no banco existente, pois as tabelas já foram criadas pelo sistema anterior.
+
+## Critérios para liberar o promocionador
+
+- Todos os anúncios ativos e de catálogo estão persistidos.
+- Cada MLB possui classificação confiável.
+- Relações tradicional ↔ catálogo estão completas.
+- O agrupamento por SKU retorna todas as ofertas.
+- Sincronizações incompletas não inativam dados válidos.
+- A elegibilidade promocional é confirmada pela API antes do envio.
+
+## Referências
 
 - [Campanhas do vendedor](https://developers.mercadolivre.com.br/pt_br/realizacao-de-testes/campanhas-do-vendedor)
+- [Tipos de publicação](https://developers.mercadolivre.com.br/pt_br/publicacao-de-produtos/tutorial-tipos-de-publicacao-y-atualizacao-de-artigos)
+- [Publicar no catálogo](https://developers.mercadolivre.com.br/pt_br/busca-de-produtos-por-vendedor/publicacao-no-catalogo)
 - [Variações e SELLER_SKU](https://developers.mercadolivre.com.br/pt_br/variacoes/variacoes)
-- [Preços de produtos](https://developers.mercadolivre.com.br/en_us/price-apl)
