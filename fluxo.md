@@ -24,20 +24,27 @@ SELLER_SKU → ITEM_ID (MLB...) → VARIATION_ID (quando existir)
 4. Salvar ou atualizar o relacionamento na tabela auxiliar.
 5. Identificar anúncios sem SKU, SKUs duplicados e anúncios inativos.
 
-### Informações sugeridas para a tabela
+### Persistência implementada
 
 ```text
-company_code
-seller_id
-seller_sku
-item_id
-variation_id (opcional)
-title
-status
-last_synced_at
+ml_listing_skus → relacionamento SKU, anúncio, variação, status e datas
+ml_sync_runs    → andamento, contagens, erros e horário de cada sincronização
 ```
 
-O valor original do SKU deve ser preservado para auditoria. O sistema também poderá manter uma versão normalizada para facilitar o cruzamento, removendo espaços nas extremidades e tratando diferenças de letras maiúsculas e minúsculas.
+O valor original do SKU é preservado em `seller_sku`. Uma versão normalizada em `normalized_sku` remove espaços nas extremidades e trata diferenças entre letras maiúsculas e minúsculas.
+
+### Execução da sincronização
+
+1. `POST /ml/catalog-sync` inicia o processo em segundo plano.
+2. O scan percorre todos os anúncios ativos, sem limite total.
+3. Os detalhes são consultados em lotes de até 20 anúncios.
+4. O `status` retornado no detalhe confirma se o anúncio continua ativo.
+5. Os SKUs do anúncio e das variações são gravados no PostgreSQL.
+6. Registros não encontrados são inativados somente quando a execução termina sem erros.
+7. `GET /ml/catalog-sync/{run_id}` informa o andamento da execução.
+8. `GET /ml/sku-map` permite consultar o relacionamento persistido.
+
+Enquanto a sincronização estiver em andamento, a tabela é preenchida gradualmente. Uma falha parcial não inativa registros antigos, evitando perda incorreta do relacionamento.
 
 ## Fluxo futuro com o Tiny
 

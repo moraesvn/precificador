@@ -13,7 +13,7 @@ def _ml_get(
     access_token: str,
     resource_path: str,
     params: dict[str, str | int] | None = None,
-) -> dict[str, Any]:
+) -> Any:
     """Executa GET na API do Mercado Livre e retorna o JSON desserializado."""
     path = resource_path.lstrip("/")
     url = f"{ML_API_BASE}/{path}"
@@ -67,6 +67,34 @@ def obter_item(
         params["include_attributes"] = attributes_value
 
     return _ml_get(access_token, f"items/{item_id}", params or None)
+
+
+def obter_itens_em_lote(
+    access_token: str,
+    item_ids: list[str],
+    *,
+    include_attributes: str | None = "all",
+) -> list[dict[str, Any]]:
+    """
+    GET /items?ids=... — detalhes de até 20 anúncios em uma única chamada.
+
+    A API retorna uma lista de envelopes com code e body para cada ITEM_ID.
+    """
+    normalized_ids = [item_id.strip() for item_id in item_ids if item_id.strip()]
+    if not normalized_ids:
+        raise ValueError("Informe ao menos um item_id.")
+    if len(normalized_ids) > 20:
+        raise ValueError("A consulta em lote aceita no maximo 20 item_ids.")
+
+    params: dict[str, str] = {"ids": ",".join(normalized_ids)}
+    attributes_value = (include_attributes or "").strip()
+    if attributes_value:
+        params["include_attributes"] = attributes_value
+
+    response = _ml_get(access_token, "items", params)
+    if not isinstance(response, list):
+        raise ValueError("Resposta invalida do multiget de itens do Mercado Livre.")
+    return response
 
 
 def obter_precos_item(access_token: str, item_id: str) -> dict[str, Any]:

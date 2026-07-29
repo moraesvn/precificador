@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from backend.api.routes.health import router as health_router
 from backend.api.routes.ml_conta import router as ml_conta_router
 from backend.api.routes.ml_precos import router as ml_precos_router
+from backend.api.routes.ml_sync import router as ml_sync_router
 from backend.api.routes.oauth_ml import router as oauth_ml_router
 from backend.api.routes.oauth_tiny import router as oauth_tiny_router
 from backend.api.routes.tiny_ordens_compra import router as tiny_ordens_compra_router
@@ -25,3 +26,4 @@ app.include_router(tiny_ordens_compra_router)
 app.include_router(oauth_ml_router)
 app.include_router(ml_conta_router)
 app.include_router(ml_precos_router)
+app.include_router(ml_sync_router)

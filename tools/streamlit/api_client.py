@@ -74,3 +74,15 @@ def get_ml_items_scan(params: dict[str, Any]) -> httpx.Response:
 
 def get_ml_item(item_id: str, params: dict[str, Any]) -> httpx.Response:
     return request("GET", f"/ml/items/{item_id}", params=params)
+
+
+def post_ml_catalog_sync(company: str) -> httpx.Response:
+    return request("POST", "/ml/catalog-sync", params={"company": company})
+
+
+def get_ml_catalog_sync(run_id: int, company: str) -> httpx.Response:
+    return request("GET", f"/ml/catalog-sync/{run_id}", params={"company": company})
+
+
+def get_ml_sku_map(params: dict[str, Any]) -> httpx.Response:
+    return request("GET", "/ml/sku-map", params=params)

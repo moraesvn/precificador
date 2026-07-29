@@ -11,14 +11,17 @@ import streamlit as st
 
 from api_client import (
     get_health,
+    get_ml_catalog_sync,
     get_ml_item,
     get_ml_items_scan,
     get_ml_items_search,
     get_ml_me,
     get_ml_precos,
     get_ml_sale_price,
+    get_ml_sku_map,
     get_tiny_ordens_compra,
     get_tiny_produtos,
+    post_ml_catalog_sync,
     post_ml_refresh,
     post_tiny_refresh,
 )
@@ -344,10 +347,11 @@ def _tab_ml_precos() -> None:
         key="ml_item_id",
     )
 
-    sub_conta, sub_detalhe, sub_precos, sub_sale, sub_refresh = st.tabs(
+    sub_conta, sub_detalhe, sub_sync, sub_precos, sub_sale, sub_refresh = st.tabs(
         [
             "Conta e anúncios",
             "Detalhe do anúncio",
+            "Sincronização SKU",
             "Todos os preços",
             "Preço de venda",
             "Refresh token",
@@ -548,6 +552,120 @@ def _tab_ml_precos() -> None:
 
                     with st.expander("JSON completo"):
                         st.json(body)
+
+    with sub_sync:
+        st.caption(
+            "`POST /ml/catalog-sync` — consulta detalhes em lotes e persiste "
+            "SELLER_SKU × ITEM_ID no PostgreSQL"
+        )
+        if st.button(
+            "Iniciar sincronização completa",
+            type="primary",
+            key="btn_ml_catalog_sync",
+        ):
+            with st.spinner("Iniciando sincronização em segundo plano..."):
+                response = post_ml_catalog_sync(company)
+            st.session_state.last_ml_catalog_sync_start = response
+            try:
+                start_body = response.json()
+            except Exception:
+                start_body = None
+            if response.is_success and isinstance(start_body, dict):
+                st.session_state.ml_catalog_sync_run_id = int(start_body["id"])
+
+        start_response = st.session_state.get("last_ml_catalog_sync_start")
+        if start_response is not None:
+            st.caption(f"Início: HTTP {start_response.status_code}")
+            try:
+                start_body = start_response.json()
+            except Exception:
+                st.code(start_response.text)
+            else:
+                if not start_response.is_success:
+                    st.error(
+                        start_body.get("detail", start_body)
+                        if isinstance(start_body, dict)
+                        else start_body
+                    )
+                else:
+                    st.success(
+                        f"Sincronização {start_body.get('id')} iniciada. "
+                        "Use o botão abaixo para acompanhar."
+                    )
+
+        default_run_id = max(
+            1, int(st.session_state.get("ml_catalog_sync_run_id", 1))
+        )
+        run_id = st.number_input(
+            "ID da sincronização",
+            min_value=1,
+            value=default_run_id,
+            step=1,
+            key="ml_catalog_sync_run_input",
+        )
+        col_status, col_map = st.columns(2)
+        with col_status:
+            if st.button("Consultar progresso", key="btn_ml_catalog_sync_status"):
+                response = get_ml_catalog_sync(int(run_id), company)
+                st.session_state.last_ml_catalog_sync_status = response
+        with col_map:
+            if st.button("Consultar tabela SKU × MLB", key="btn_ml_sku_map"):
+                params = {
+                    "company": company,
+                    "active_only": True,
+                    "limit": 500,
+                    "offset": 0,
+                }
+                response = get_ml_sku_map(params)
+                st.session_state.last_ml_sku_map = response
+
+        status_response = st.session_state.get("last_ml_catalog_sync_status")
+        if status_response is not None:
+            st.divider()
+            try:
+                body = status_response.json()
+            except Exception:
+                st.code(status_response.text)
+            else:
+                if not status_response.is_success:
+                    st.error(body.get("detail", body) if isinstance(body, dict) else body)
+                elif isinstance(body, dict):
+                    cols = st.columns(5)
+                    cols[0].metric("Status", body.get("status", "—"))
+                    cols[1].metric("Encontrados", body.get("items_found", 0))
+                    cols[2].metric("Processados", body.get("items_processed", 0))
+                    cols[3].metric("SKUs", body.get("skus_found", 0))
+                    cols[4].metric("Erros", body.get("errors_count", 0))
+                    st.caption(
+                        f"Sem SKU: {body.get('items_without_sku', 0)} | "
+                        f"Início: {body.get('started_at', '—')} | "
+                        f"Fim: {body.get('finished_at', '—')}"
+                    )
+                    if body.get("error_message"):
+                        st.warning(body["error_message"])
+
+        map_response = st.session_state.get("last_ml_sku_map")
+        if map_response is not None:
+            st.divider()
+            try:
+                body = map_response.json()
+            except Exception:
+                st.code(map_response.text)
+            else:
+                if not map_response.is_success:
+                    st.error(body.get("detail", body) if isinstance(body, dict) else body)
+                elif isinstance(body, dict):
+                    paging = body.get("paging") or {}
+                    st.metric("Registros ativos na tabela", paging.get("total", 0))
+                    results = body.get("results")
+                    if isinstance(results, list) and results:
+                        st.dataframe(
+                            pd.DataFrame(results),
+                            use_container_width=True,
+                            hide_index=True,
+                        )
+                    else:
+                        st.info("A tabela ainda não possui registros ativos.")
 
     with sub_precos:
         st.caption("`GET /ml/items/{item_id}/prices` — standard e promotion")
