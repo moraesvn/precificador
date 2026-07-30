@@ -218,7 +218,17 @@ Status: implementado (deploy feito).
 - Dry-run opcional; não reativa anúncio inativo; agrupa por `ITEM_ID`.
 - Streamlit: após prévia, confirma datas/nome e aplica (default dry-run).
 
-Status: implementado no código (aplicar migração + deploy na VPS).
+Status: implementado (migração + deploy).
+
+#### 6.5 — Apply `DEAL` (candidatos) + log
+
+- `GET /promotions/deals` — lista DEAL do vendedor.
+- `POST /promotions/deals/candidates` — status + faixa min/max/suggested por ITEM_ID.
+- `POST /promotions/apply/deal` — adesão com `deal_price` (só `candidate`); reusa log 6.4.
+- Skip se fora da faixa (ou `clamp_to_band`); dry-run padrão na UI.
+- Streamlit: após prévia DEAL → listar/consultar candidatos → apply.
+
+Status: implementado no código (requer deploy da API).
 
 ## Operação do Alembic
 

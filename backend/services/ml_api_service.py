@@ -329,29 +329,34 @@ def criar_seller_campaign(
     return response
 
 
-def incluir_item_seller_campaign(
+def incluir_item_promocao(
     access_token: str,
     item_id: str,
     *,
     promotion_id: str,
-    deal_price: float,
+    promotion_type: str,
+    deal_price: float | None = None,
     top_deal_price: float | None = None,
+    offer_id: str | None = None,
 ) -> dict[str, Any]:
     """
     POST /seller-promotions/items/{ITEM_ID}?app_version=v2
 
-    Inclui item na campanha com deal_price.
+    Inclui item em promoção (SELLER_CAMPAIGN, DEAL, etc.).
     """
     item_id = item_id.strip()
     if not item_id:
         raise ValueError("item_id obrigatorio.")
     payload: dict[str, Any] = {
         "promotion_id": promotion_id.strip(),
-        "promotion_type": "SELLER_CAMPAIGN",
-        "deal_price": float(deal_price),
+        "promotion_type": promotion_type.strip().upper(),
     }
+    if deal_price is not None:
+        payload["deal_price"] = float(deal_price)
     if top_deal_price is not None:
         payload["top_deal_price"] = float(top_deal_price)
+    if offer_id is not None:
+        payload["offer_id"] = offer_id.strip()
 
     response = _ml_request(
         access_token,
@@ -363,6 +368,88 @@ def incluir_item_seller_campaign(
     if response is None:
         return {}
     if not isinstance(response, dict):
-        raise ValueError("Resposta invalida ao incluir item na SELLER_CAMPAIGN.")
+        raise ValueError(
+            f"Resposta invalida ao incluir item na promocao {promotion_type}."
+        )
+    return response
+
+
+def incluir_item_seller_campaign(
+    access_token: str,
+    item_id: str,
+    *,
+    promotion_id: str,
+    deal_price: float,
+    top_deal_price: float | None = None,
+) -> dict[str, Any]:
+    """Atalho para incluir item em SELLER_CAMPAIGN."""
+    return incluir_item_promocao(
+        access_token,
+        item_id,
+        promotion_id=promotion_id,
+        promotion_type="SELLER_CAMPAIGN",
+        deal_price=deal_price,
+        top_deal_price=top_deal_price,
+    )
+
+
+def listar_promocoes_vendedor(
+    access_token: str,
+    user_id: str,
+    *,
+    promotion_type: str | None = None,
+) -> dict[str, Any]:
+    """GET /seller-promotions/users/{USER_ID}?app_version=v2"""
+    user_id = str(user_id).strip()
+    if not user_id:
+        raise ValueError("user_id obrigatorio.")
+    params: dict[str, str | int] = {"app_version": "v2"}
+    # Alguns tipos aceitam filtro; se a API ignorar, filtramos no client.
+    if promotion_type:
+        params["promotion_type"] = promotion_type.strip().upper()
+    response = _ml_request(
+        access_token,
+        "GET",
+        f"seller-promotions/users/{user_id}",
+        params=params,
+    )
+    if not isinstance(response, dict):
+        raise ValueError("Resposta invalida ao listar promocoes do vendedor.")
+    return response
+
+
+def listar_itens_promocao(
+    access_token: str,
+    promotion_id: str,
+    *,
+    promotion_type: str,
+    status: str | None = None,
+    item_id: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> dict[str, Any]:
+    """GET /seller-promotions/promotions/{ID}/items?promotion_type=...&app_version=v2"""
+    promotion_id = promotion_id.strip()
+    if not promotion_id:
+        raise ValueError("promotion_id obrigatorio.")
+    params: dict[str, str | int] = {
+        "promotion_type": promotion_type.strip().upper(),
+        "app_version": "v2",
+        "limit": limit,
+        "offset": offset,
+    }
+    if status:
+        params["status"] = status.strip().lower()
+    if item_id:
+        params["item_id"] = item_id.strip()
+
+    response = _ml_request(
+        access_token,
+        "GET",
+        f"seller-promotions/promotions/{promotion_id}/items",
+        params=params,
+    )
+    if not isinstance(response, dict):
+        raise ValueError("Resposta invalida ao listar itens da promocao.")
     return response
 
