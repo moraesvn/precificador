@@ -8,6 +8,11 @@ from sqlalchemy.orm import Session
 from backend.models import MLListing, MLListingRelation, MLListingSku, MLSyncRun
 
 
+def _normalize_seller_sku(value: str | None) -> str | None:
+    normalized = (value or "").strip().upper()
+    return normalized or None
+
+
 class MLSyncRepository:
     """Persistência do catálogo ML (listings, SKUs, relações) e histórico de sync."""
 
@@ -215,3 +220,116 @@ class MLSyncRepository:
             .all()
         )
         return entries, total
+
+    def list_listings(
+        self,
+        *,
+        company_code: str,
+        active_only: bool,
+        catalog_listing: bool | None,
+        listing_type_id: str | None,
+        discovery_source: str | None,
+        catalog_boost: bool | None,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[MLListing], int]:
+        query = self.db.query(MLListing).filter(
+            MLListing.company_code == company_code.upper()
+        )
+        if active_only:
+            query = query.filter(MLListing.is_active.is_(True))
+        if catalog_listing is not None:
+            query = query.filter(MLListing.catalog_listing.is_(catalog_listing))
+        if listing_type_id:
+            query = query.filter(MLListing.listing_type_id == listing_type_id)
+        if discovery_source:
+            query = query.filter(MLListing.discovery_source == discovery_source)
+        if catalog_boost is not None:
+            query = query.filter(MLListing.catalog_boost.is_(catalog_boost))
+
+        total = query.count()
+        entries = (
+            query.order_by(MLListing.item_id).offset(offset).limit(limit).all()
+        )
+        return entries, total
+
+    def list_relations(
+        self,
+        *,
+        company_code: str,
+        item_id: str | None,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[MLListingRelation], int]:
+        query = self.db.query(MLListingRelation).filter(
+            MLListingRelation.company_code == company_code.upper()
+        )
+        if item_id:
+            normalized = item_id.strip()
+            query = query.filter(
+                or_(
+                    MLListingRelation.source_item_id == normalized,
+                    MLListingRelation.related_item_id == normalized,
+                )
+            )
+
+        total = query.count()
+        entries = (
+            query.order_by(
+                MLListingRelation.source_item_id,
+                MLListingRelation.related_item_id,
+            )
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+        return entries, total
+
+    def find_offers_by_sku(
+        self,
+        *,
+        company_code: str,
+        sku: str,
+        active_only: bool,
+    ) -> list[tuple[MLListingSku, MLListing | None]]:
+        """Retorna SKUs do catálogo local com o anúncio associado (se houver)."""
+        normalized = _normalize_seller_sku(sku)
+        if not normalized:
+            return []
+
+        query = (
+            self.db.query(MLListingSku, MLListing)
+            .outerjoin(MLListing, MLListingSku.listing_id == MLListing.id)
+            .filter(
+                MLListingSku.company_code == company_code.upper(),
+                MLListingSku.normalized_sku == normalized,
+            )
+        )
+        if active_only:
+            query = query.filter(MLListingSku.is_active.is_(True))
+
+        return query.order_by(MLListingSku.item_id, MLListingSku.variation_id).all()
+
+    def list_relations_for_items(
+        self,
+        *,
+        company_code: str,
+        item_ids: list[str],
+    ) -> list[MLListingRelation]:
+        if not item_ids:
+            return []
+        return (
+            self.db.query(MLListingRelation)
+            .filter(
+                MLListingRelation.company_code == company_code.upper(),
+                or_(
+                    MLListingRelation.source_item_id.in_(item_ids),
+                    MLListingRelation.related_item_id.in_(item_ids),
+                ),
+            )
+            .order_by(
+                MLListingRelation.source_item_id,
+                MLListingRelation.related_item_id,
+            )
+            .all()
+        )

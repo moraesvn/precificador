@@ -172,6 +172,8 @@ Status: implementado no `POST /ml/catalog-sync` (pipeline único em segundo plan
 - Exibir tipo, catálogo, preço, estoque e relação.
 - Mostrar divergências e anúncios duplicados.
 
+Status: endpoints `GET /ml/sku-offers`, `/ml/listings`, `/ml/listing-relations` e aba Streamlit **Explorar catálogo**.
+
 ### Etapa 6 — Promocionador
 
 - Receber SKUs do Tiny.
