@@ -192,7 +192,23 @@ Status: endpoints `GET /ml/sku-offers`, `/ml/listings`, `/ml/listing-relations` 
 - Endpoints: `GET /promotions/types`, `GET /promotions/settings`,
   `PUT /promotions/settings/marketplace`, `PUT /promotions/settings/types/{code}`.
 
-Status: implementado no código (aplicar migração `20260730_01` na VPS).
+Status: implementado e migrado na VPS (`20260730_01`).
+
+#### 6.2 — Streamlit de produto (configs)
+
+- App novo: `tools/streamlit/promocionar_app.py` (`streamlit run promocionar_app.py`).
+- Sidebar SP/SC + marketplace ML.
+- Aba Configurações: regras gerais (fonte Tiny/ML, ajuste) e tipos com toggle/% por eixo.
+- Aba Promocionar: stub até a prévia (6.3).
+
+#### 6.3 — Prévia (sem POST promo)
+
+- Cálculo: `backend/services/promotion_price_service.py` (fonte + ajuste + % por eixo → `deal_price`).
+- Orquestração: `promotion_preview_service.py` (Tiny opcional + `sku-offers` local + settings).
+- API: `POST /promotions/preview` — retorna ofertas com `deal_price`, avisos (inativo etc.).
+- Streamlit: aba Promocionar busca Tiny, seleciona SKUs e gera prévia (sem apply).
+
+Status: implementado no código (requer deploy da API na VPS para o Streamlit de produção).
 
 ## Operação do Alembic
 
