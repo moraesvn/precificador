@@ -1,11 +1,13 @@
 from backend.db import Base, engine
 from backend.models import (  # noqa: F401
+    MarketplacePromotionSettings,
     MLListing,
     MLListingRelation,
     MLListingSku,
     MLSyncRun,
     OAuthConnection,
     OAuthState,
+    PromotionTypeSetting,
 )
 
 

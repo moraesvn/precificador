@@ -184,6 +184,16 @@ Status: endpoints `GET /ml/sku-offers`, `/ml/listings`, `/ml/listing-relations` 
 - Aplicar a promoção em cada `ITEM_ID` elegível.
 - Registrar resultados e erros individualmente.
 
+#### 6.1 — Configs (Postgres + API)
+
+- Tabelas `marketplace_promotion_settings` e `promotion_type_settings`.
+- Catálogo resumido dos tipos; MVP ativável: `SELLER_CAMPAIGN` e `DEAL`.
+- Fonte do preço-base (`tiny` | `ml`), ajuste global e % por exposição/catálogo.
+- Endpoints: `GET /promotions/types`, `GET /promotions/settings`,
+  `PUT /promotions/settings/marketplace`, `PUT /promotions/settings/types/{code}`.
+
+Status: implementado no código (aplicar migração `20260730_01` na VPS).
+
 ## Operação do Alembic
 
 Definir `DATABASE_URL` antes dos comandos.

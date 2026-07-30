@@ -10,6 +10,7 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.db import Base
@@ -311,6 +312,76 @@ class MLListingSku(Base):
     last_sync_run_id: Mapped[int | None] = mapped_column(
         ForeignKey("ml_sync_runs.id"), nullable=True, index=True
     )
+    created_at: Mapped[DateTime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[DateTime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
+class MarketplacePromotionSettings(Base):
+    """Regras gerais de promoção por empresa e marketplace."""
+
+    __tablename__ = "marketplace_promotion_settings"
+    __table_args__ = (
+        UniqueConstraint(
+            "company_code",
+            "marketplace",
+            name="uq_marketplace_promotion_settings",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    company_code: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+    # Ex.: ml
+    marketplace: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    # tiny | ml
+    price_base_source: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="tiny", server_default="tiny"
+    )
+    # percent | fixed
+    global_adjust_kind: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="percent", server_default="percent"
+    )
+    global_adjust_value: Mapped[float] = mapped_column(
+        Numeric(14, 4), nullable=False, default=0, server_default="0"
+    )
+    created_at: Mapped[DateTime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[DateTime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
+class PromotionTypeSetting(Base):
+    """Ativação e % de desconto por tipo de promoção (por empresa/marketplace)."""
+
+    __tablename__ = "promotion_type_settings"
+    __table_args__ = (
+        UniqueConstraint(
+            "company_code",
+            "marketplace",
+            "promotion_type",
+            name="uq_promotion_type_settings",
+        ),
+        Index(
+            "ix_promotion_type_settings_company_mkt",
+            "company_code",
+            "marketplace",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    company_code: Mapped[str] = mapped_column(String(10), nullable=False)
+    marketplace: Mapped[str] = mapped_column(String(30), nullable=False)
+    promotion_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    is_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    # percentuais por eixo: premium/classic × traditional/catalog
+    discount_rules: Mapped[dict] = mapped_column(JSONB, nullable=False)
     created_at: Mapped[DateTime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
