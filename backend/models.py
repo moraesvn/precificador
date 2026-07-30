@@ -388,3 +388,67 @@ class PromotionTypeSetting(Base):
     updated_at: Mapped[DateTime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
+
+
+class PromotionApplyRun(Base):
+    """Execução de apply de promoção (ex.: SELLER_CAMPAIGN)."""
+
+    __tablename__ = "promotion_apply_runs"
+    __table_args__ = (
+        Index(
+            "ix_promotion_apply_runs_company_created",
+            "company_code",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    company_code: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+    marketplace: Mapped[str] = mapped_column(String(30), nullable=False)
+    promotion_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    ml_promotion_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    campaign_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    start_date: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    finish_date: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    # pending | running | completed | failed | dry_run
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending")
+    dry_run: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    items_total: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    items_success: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    items_failed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    items_skipped: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[DateTime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    finished_at: Mapped[DateTime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+
+class PromotionApplyItem(Base):
+    """Resultado individual por ITEM_ID em um apply."""
+
+    __tablename__ = "promotion_apply_items"
+    __table_args__ = (
+        Index("ix_promotion_apply_items_run", "run_id"),
+        Index("ix_promotion_apply_items_item", "item_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    run_id: Mapped[int] = mapped_column(
+        ForeignKey("promotion_apply_runs.id"), nullable=False
+    )
+    item_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    sku: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    deal_price: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
+    # success | failed | skipped
+    status: Mapped[str] = mapped_column(String(30), nullable=False)
+    http_status: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    response_body: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[DateTime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )

@@ -208,7 +208,17 @@ Status: implementado e migrado na VPS (`20260730_01`).
 - API: `POST /promotions/preview` — retorna ofertas com `deal_price`, avisos (inativo etc.).
 - Streamlit: aba Promocionar busca Tiny, seleciona SKUs e gera prévia (sem apply).
 
-Status: implementado no código (requer deploy da API na VPS para o Streamlit de produção).
+Status: implementado (deploy feito).
+
+#### 6.4 — Apply `SELLER_CAMPAIGN` + log
+
+- Tabelas `promotion_apply_runs` / `promotion_apply_items` (migração `20260730_02`).
+- ML: criar campanha + `POST /seller-promotions/items/{ITEM_ID}` com `deal_price`.
+- API: `POST /promotions/apply/seller-campaign`, `GET /promotions/apply/{run_id}`.
+- Dry-run opcional; não reativa anúncio inativo; agrupa por `ITEM_ID`.
+- Streamlit: após prévia, confirma datas/nome e aplica (default dry-run).
+
+Status: implementado no código (aplicar migração + deploy na VPS).
 
 ## Operação do Alembic
 

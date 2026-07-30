@@ -1,6 +1,6 @@
 """Chamadas HTTP à API do Mercado Livre, separadas do fluxo OAuth."""
 
-from json import JSONDecodeError, loads
+from json import JSONDecodeError, dumps, loads
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
@@ -9,41 +9,90 @@ from urllib.request import Request, urlopen
 ML_API_BASE = "https://api.mercadolibre.com"
 
 
+class MLApiError(ValueError):
+    """Erro da API do Mercado Livre com status HTTP e body."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int | None = None,
+        body: Any = None,
+        resource_path: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.body = body
+        self.resource_path = resource_path
+
+
+def _parse_json_body(raw: str) -> Any:
+    if not raw or not raw.strip():
+        return None
+    try:
+        return loads(raw)
+    except JSONDecodeError as exc:
+        raise ValueError("Resposta da API do Mercado Livre nao e JSON valido.") from exc
+
+
+def _ml_request(
+    access_token: str,
+    method: str,
+    resource_path: str,
+    *,
+    params: dict[str, str | int] | None = None,
+    json_body: dict[str, Any] | None = None,
+    timeout: float = 45.0,
+) -> Any:
+    """Executa request na API do ML e retorna JSON (ou None se body vazio)."""
+    path = resource_path.lstrip("/")
+    url = f"{ML_API_BASE}/{path}"
+    if params:
+        url = f"{url}?{urlencode(params)}"
+
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Accept": "application/json",
+    }
+    data = None
+    if json_body is not None:
+        data = dumps(json_body).encode("utf-8")
+        headers["Content-Type"] = "application/json"
+
+    request = Request(url, data=data, method=method.upper(), headers=headers)
+
+    try:
+        with urlopen(request, timeout=timeout) as response:
+            body = response.read().decode("utf-8")
+    except HTTPError as exc:
+        error_body = exc.read().decode("utf-8", errors="ignore")
+        parsed: Any
+        try:
+            parsed = loads(error_body) if error_body.strip() else error_body
+        except JSONDecodeError:
+            parsed = error_body
+        raise MLApiError(
+            f"Mercado Livre API retornou status {exc.code} em '{resource_path}'. "
+            f"Body: {error_body}",
+            status_code=exc.code,
+            body=parsed,
+            resource_path=resource_path,
+        ) from exc
+    except URLError as exc:
+        raise ValueError(
+            f"Erro de conexao com a API do Mercado Livre: {exc.reason}"
+        ) from exc
+
+    return _parse_json_body(body)
+
+
 def _ml_get(
     access_token: str,
     resource_path: str,
     params: dict[str, str | int] | None = None,
 ) -> Any:
     """Executa GET na API do Mercado Livre e retorna o JSON desserializado."""
-    path = resource_path.lstrip("/")
-    url = f"{ML_API_BASE}/{path}"
-    if params:
-        url = f"{url}?{urlencode(params)}"
-
-    request = Request(
-        url,
-        method="GET",
-        headers={
-            "Authorization": f"Bearer {access_token}",
-            "Accept": "application/json",
-        },
-    )
-
-    try:
-        with urlopen(request, timeout=45) as response:
-            body = response.read().decode("utf-8")
-    except HTTPError as exc:
-        error_body = exc.read().decode("utf-8", errors="ignore")
-        raise ValueError(
-            f"Mercado Livre API retornou status {exc.code} em '{resource_path}'. Body: {error_body}"
-        ) from exc
-    except URLError as exc:
-        raise ValueError(f"Erro de conexao com a API do Mercado Livre: {exc.reason}") from exc
-
-    try:
-        return loads(body)
-    except JSONDecodeError as exc:
-        raise ValueError("Resposta da API do Mercado Livre nao e JSON valido.") from exc
+    return _ml_request(access_token, "GET", resource_path, params=params)
 
 
 def obter_item(
@@ -245,4 +294,75 @@ def buscar_itens_catalog_boost_ativos(
         tags="catalog_boost",
         limit_per_page=limit_per_page,
     )
+
+
+def criar_seller_campaign(
+    access_token: str,
+    *,
+    name: str,
+    start_date: str,
+    finish_date: str,
+    sub_type: str = "FLEXIBLE_PERCENTAGE",
+) -> dict[str, Any]:
+    """
+    POST /seller-promotions/promotions?app_version=v2
+
+    Cria campanha do vendedor (SELLER_CAMPAIGN).
+    Datas no formato local, ex.: 2026-07-30T00:00:00
+    """
+    payload = {
+        "promotion_type": "SELLER_CAMPAIGN",
+        "name": name.strip(),
+        "sub_type": sub_type,
+        "start_date": start_date.strip(),
+        "finish_date": finish_date.strip(),
+    }
+    response = _ml_request(
+        access_token,
+        "POST",
+        "seller-promotions/promotions",
+        params={"app_version": "v2"},
+        json_body=payload,
+    )
+    if not isinstance(response, dict):
+        raise ValueError("Resposta invalida ao criar SELLER_CAMPAIGN.")
+    return response
+
+
+def incluir_item_seller_campaign(
+    access_token: str,
+    item_id: str,
+    *,
+    promotion_id: str,
+    deal_price: float,
+    top_deal_price: float | None = None,
+) -> dict[str, Any]:
+    """
+    POST /seller-promotions/items/{ITEM_ID}?app_version=v2
+
+    Inclui item na campanha com deal_price.
+    """
+    item_id = item_id.strip()
+    if not item_id:
+        raise ValueError("item_id obrigatorio.")
+    payload: dict[str, Any] = {
+        "promotion_id": promotion_id.strip(),
+        "promotion_type": "SELLER_CAMPAIGN",
+        "deal_price": float(deal_price),
+    }
+    if top_deal_price is not None:
+        payload["top_deal_price"] = float(top_deal_price)
+
+    response = _ml_request(
+        access_token,
+        "POST",
+        f"seller-promotions/items/{item_id}",
+        params={"app_version": "v2"},
+        json_body=payload,
+    )
+    if response is None:
+        return {}
+    if not isinstance(response, dict):
+        raise ValueError("Resposta invalida ao incluir item na SELLER_CAMPAIGN.")
+    return response
 

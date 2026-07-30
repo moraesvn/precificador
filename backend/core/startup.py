@@ -7,6 +7,8 @@ from backend.models import (  # noqa: F401
     MLSyncRun,
     OAuthConnection,
     OAuthState,
+    PromotionApplyItem,
+    PromotionApplyRun,
     PromotionTypeSetting,
 )
 
