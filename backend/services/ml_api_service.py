@@ -165,13 +165,16 @@ def buscar_todos_itens_ativos_vendedor(
     access_token: str,
     user_id: str,
     *,
+    tags: str | None = None,
     limit_per_page: int = 100,
 ) -> dict[str, Any]:
     """
-    Lista todos os anúncios ativos do vendedor usando search_type=scan.
+    Lista anúncios ativos do vendedor usando search_type=scan.
 
     O scan é necessário para contas com mais de 1.000 anúncios. As páginas são
     percorridas até o Mercado Livre retornar results vazio ou nulo.
+
+    tags: filtro opcional (ex.: catalog_boost) enviado na primeira página do scan.
     """
     user_id = user_id.strip()
     if not user_id:
@@ -185,10 +188,13 @@ def buscar_todos_itens_ativos_vendedor(
         "status": "active",
         "limit": limit_per_page,
     }
+    tags_value = (tags or "").strip()
+    if tags_value:
+        params["tags"] = tags_value
+
     item_ids: list[str] = []
     seen_item_ids: set[str] = set()
     pages = 0
-    scroll_id: str | None = None
 
     while True:
         response = _ml_get(access_token, resource_path, params)
@@ -210,18 +216,33 @@ def buscar_todos_itens_ativos_vendedor(
         if not response_scroll_id:
             raise ValueError("Mercado Livre nao retornou scroll_id para continuar o scan.")
 
-        scroll_id = response_scroll_id
         params = {
             "search_type": "scan",
-            "scroll_id": scroll_id,
+            "scroll_id": response_scroll_id,
             "limit": limit_per_page,
         }
 
     return {
         "seller_id": user_id,
         "status": "active",
+        "tags": tags_value or None,
         "total": len(item_ids),
         "pages": pages,
         "results": item_ids,
     }
+
+
+def buscar_itens_catalog_boost_ativos(
+    access_token: str,
+    user_id: str,
+    *,
+    limit_per_page: int = 100,
+) -> dict[str, Any]:
+    """Lista anúncios ativos com tag catalog_boost (opt-in automático do ML)."""
+    return buscar_todos_itens_ativos_vendedor(
+        access_token,
+        user_id,
+        tags="catalog_boost",
+        limit_per_page=limit_per_page,
+    )
 

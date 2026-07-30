@@ -44,6 +44,7 @@ def _serialize_listing(entry: MLListingSku) -> dict:
     return {
         "company_code": entry.company_code,
         "seller_id": entry.seller_id,
+        "listing_id": entry.listing_id,
         "item_id": entry.item_id,
         "variation_id": entry.variation_id or None,
         "seller_sku": entry.seller_sku,
@@ -67,7 +68,11 @@ def start_catalog_sync(
     ),
     db: Session = Depends(get_db),
 ) -> dict:
-    """Inicia em segundo plano a sincronização dos anúncios ativos e seus SKUs."""
+    """Inicia em segundo plano o pipeline completo do catálogo ML.
+
+    Inclui scan de ativos, tag catalog_boost, detalhes em lote, item_relations
+    e persistência em ml_listings / ml_listing_skus / ml_listing_relations.
+    """
     connection = get_ml_connection_with_optional_refresh(db, company, x_internal_token)
     company_code = connection.company_code.upper()
     seller_id = (connection.external_account_id or "").strip()

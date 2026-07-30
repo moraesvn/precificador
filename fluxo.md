@@ -33,22 +33,18 @@ ml_listing_relations  → relações tradicional ↔ catálogo (item_relations)
 ml_sync_runs          → andamento, contagens por tipo, relações e erros
 ```
 
-O sincronizador atual ainda grava só em `ml_listing_skus`. O preenchimento completo de `ml_listings` e `ml_listing_relations` entra na próxima etapa.
-
-O valor original do SKU é preservado em `seller_sku`. Uma versão normalizada em `normalized_sku` remove espaços nas extremidades e trata diferenças entre letras maiúsculas e minúsculas.
-
 ### Execução da sincronização
 
-1. `POST /ml/catalog-sync` inicia o processo em segundo plano.
-2. O scan percorre todos os anúncios ativos, sem limite total.
-3. Os detalhes são consultados em lotes de até 20 anúncios.
-4. O `status` retornado no detalhe confirma se o anúncio continua ativo.
-5. Os SKUs do anúncio e das variações são gravados no PostgreSQL.
-6. Registros não encontrados são inativados somente quando a execução termina sem erros.
-7. `GET /ml/catalog-sync/{run_id}` informa o andamento da execução.
-8. `GET /ml/sku-map` permite consultar o relacionamento persistido.
+1. `POST /ml/catalog-sync` inicia o pipeline completo em segundo plano.
+2. Scan de anúncios ativos + busca com tag `catalog_boost`.
+3. Detalhes em lotes de até 20; extrai SKU, classificação e `item_relations`.
+4. Enfileira IDs relacionados ainda não visitados (evita ciclos).
+5. Persiste em `ml_listings`, `ml_listing_skus` e `ml_listing_relations`.
+6. Registros não vistos são inativados somente quando a execução termina sem erros.
+7. `GET /ml/catalog-sync/{run_id}` informa o andamento (inclui Premium/Clássico/catálogo/relações).
+8. `GET /ml/sku-map` consulta o relacionamento SKU × MLB.
 
-Enquanto a sincronização estiver em andamento, a tabela é preenchida gradualmente. Uma falha parcial não inativa registros antigos, evitando perda incorreta do relacionamento.
+Enquanto a sincronização estiver em andamento, as tabelas são preenchidas gradualmente. Uma falha parcial não inativa registros antigos.
 
 ## Fluxo futuro com o Tiny
 

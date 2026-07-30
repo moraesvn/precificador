@@ -164,6 +164,8 @@ Pulada: o catálogo será preenchido do zero pela sincronização completa.
 - Classificar Premium, Clássico, catálogo e tradicional.
 - Persistir todas as relações.
 
+Status: implementado no `POST /ml/catalog-sync` (pipeline único em segundo plano).
+
 ### Etapa 5 — Consulta e conferência
 
 - Consultar anúncios agrupados por SKU.
